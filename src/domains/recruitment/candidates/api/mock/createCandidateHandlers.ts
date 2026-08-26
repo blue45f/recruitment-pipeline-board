@@ -46,6 +46,13 @@ type ErrorResponseOptions = {
 
 let fallbackRequestSequence = 0
 
+function randomUnitInterval() {
+  const values = new Uint32Array(1)
+  globalThis.crypto.getRandomValues(values)
+
+  return (values[0] ?? 0) / 0x1_0000_0000
+}
+
 export function latencyFromRandom(value: number) {
   const normalized = Math.min(Math.max(value, 0), 1)
 
@@ -118,8 +125,8 @@ function listRequestFromUrl(url: URL) {
 export function createCandidateHandlers({
   repository,
   wait = delay,
-  latency = () => latencyFromRandom(Math.random()),
-  shouldFail = () => shouldSimulateFailure(Math.random()),
+  latency = () => latencyFromRandom(randomUnitInterval()),
+  shouldFail = () => shouldSimulateFailure(randomUnitInterval()),
   now = () => new Date(),
   createRequestId = defaultRequestId,
 }: CreateCandidateHandlersOptions): RequestHandler[] {

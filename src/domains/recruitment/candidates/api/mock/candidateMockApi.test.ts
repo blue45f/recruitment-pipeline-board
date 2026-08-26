@@ -304,7 +304,7 @@ describe('candidate mock API', () => {
     storage.write(
       JSON.stringify({
         version: 1,
-        seed: 20_260_826,
+        seed: 20260826,
         mutations: {
           [candidate.id]: {
             currentStage: 'hired',

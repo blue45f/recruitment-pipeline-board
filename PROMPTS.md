@@ -111,3 +111,20 @@
 - AbortSignal 취소가 `ApiError`로 감싸지지 않는지, Ky가 503을 자체 재시도하지 않는지, 409의 서버 원문이 `message`와 `safeMessage`에 섞이지 않는지 확인했다.
 - 유효한 목록·상세·단계 변경, strict schema 불일치, 깨진 JSON, 409·503, network, query/mutation timeout, Abort, 잘못된 로컬 요청과 request ID 정제를 포함한 전용 Vitest 13개를 작성했다.
 - 첫 커밋 제목의 `Ky·Zod` 대문자 시작은 Commitlint의 subject-case 규칙이 거부했다. 커밋은 생성되지 않았고 기술명만 소문자로 고쳐 같은 변경을 다시 검증했다.
+
+## [review-fix] SonarCloud 보안·가독성 지적 보완
+
+### 프롬프트 1
+
+> PR #2의 SonarCloud Quality Gate가 새 코드 보안 등급 C로 실패했어. annotation 3건을 실제 line 기준으로 확인해서 수정해줘. Mock API의 지연과 실패 확률에 쓴 `Math.random()` 두 곳은 보안 값이 아니더라도 경고를 숨기지 말고 Web Crypto 기반 난수로 바꾸되, 테스트의 주입 가능한 latency와 failure 구조는 유지해줘. fixture seed의 숫자 구분자 가독성 경고도 의미가 바뀌지 않게 정리하고 전체 테스트와 재분석으로 확인해줘.
+
+### AI 출력 요지
+
+- 기본 지연과 실패 판정에 사용할 0 이상 1 미만 값을 `crypto.getRandomValues()`로 만들고 기존 순수 변환 함수와 테스트 주입 경계는 유지했다.
+- 날짜처럼 보이던 fixture seed의 불규칙 숫자 구분자를 제거하고 저장 envelope 테스트 값도 맞췄다.
+
+### 리뷰 / 검증
+
+- GitHub check 요약만 보고 추측하지 않고 SonarCloud check-run annotation API에서 파일과 line을 확인했다. 보안 경고 2건은 `createCandidateHandlers.ts`의 `Math.random`, 가독성 경고 1건은 repository seed였다.
+- `NOSONAR`로 숨기는 방식은 기각했다. Mock 확률 자체는 보안 값이 아니지만 Web Crypto로 교체하는 비용이 작고 Quality Gate의 의도를 해치지 않는다고 판단했다.
+- 외부에서 latency와 failure를 주입하는 테스트 API는 바꾸지 않아 기존 동시성·실패 회귀 테스트를 그대로 다시 실행할 수 있게 했다.

@@ -13,7 +13,7 @@ import {
 import type { CandidateMockStorage } from './candidateMockStorage'
 
 const STORAGE_VERSION = 1 as const
-const DEFAULT_FIXTURE_SEED = 20_260_826
+const DEFAULT_FIXTURE_SEED = 20260826
 
 const persistedMutationSchema = z
   .object({
