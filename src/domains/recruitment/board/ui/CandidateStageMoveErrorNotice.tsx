@@ -39,7 +39,7 @@ export function CandidateStageMoveErrorNotice({
           >
             {failure.candidateName} 후보자의 단계 이동을 저장하지 못했어요
           </h3>
-          <p className="mt-1 text-sm leading-6 text-[var(--color-muted)]">
+          <p className="mt-1 text-sm leading-6 text-[var(--color-ink)]">
             {targetStageLabel} 단계로 변경하지 못했습니다. {failure.safeMessage}
           </p>
         </div>
@@ -90,7 +90,7 @@ export function CandidateStageMoveVerificationNotice({
           >
             {verification.candidateName} 후보자의 저장 결과를 확인해 주세요
           </h3>
-          <p className="mt-1 text-sm leading-6 text-[var(--color-muted)]">
+          <p className="mt-1 text-sm leading-6 text-[var(--color-ink)]">
             {targetStageLabel} 단계로 이동한 결과가 아직 확정되지 않았습니다.{' '}
             {verification.safeMessage}
           </p>
