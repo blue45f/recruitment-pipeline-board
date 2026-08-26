@@ -14,7 +14,7 @@ function waitForStableBoard() {
     .each(($list) => {
       cy.wrap($list)
         .find('[data-virtualized-candidate-item]')
-        .should('not.be.empty')
+        .should('have.length.greaterThan', 0)
     })
   cy.document().then(async (document) => {
     await document.fonts.ready

@@ -9,6 +9,7 @@ import { TextField } from '@/components/ui/TextField'
 import {
   CANDIDATE_ROLES,
   CANDIDATE_ROLE_LABELS,
+  candidateListSizeSchema,
   type CandidateListSize,
 } from '@/domains/recruitment/candidates/model'
 
@@ -27,23 +28,30 @@ const ROLE_OPTIONS = [
   })),
 ] as const
 
-const LIST_SIZE_OPTIONS = [
-  { label: '후보자 200명', value: '200' },
-  { label: '후보자 1,000명 · 가상 목록', value: '1000' },
-  { label: '데이터 없음 · 빈 상태', value: '0' },
-] as const
+const LIST_SIZE_LABELS = {
+  0: '데이터 없음 · 빈 상태',
+  200: '후보자 200명',
+  1000: '후보자 1,000명 · 가상 목록',
+} as const satisfies Record<CandidateListSize, string>
+
+const LIST_SIZE_ORDER = {
+  0: 2,
+  200: 0,
+  1000: 1,
+} as const satisfies Record<CandidateListSize, number>
+
+const LIST_SIZE_OPTIONS = [...candidateListSizeSchema.values]
+  .sort((left, right) => LIST_SIZE_ORDER[left] - LIST_SIZE_ORDER[right])
+  .map((size) => ({ label: LIST_SIZE_LABELS[size], value: String(size) }))
 
 function parseListSize(value: string): CandidateListSize | undefined {
-  switch (value) {
-    case '0':
-      return 0
-    case '200':
-      return 200
-    case '1000':
-      return 1_000
-    default:
-      return undefined
+  if (value.trim().length === 0) {
+    return undefined
   }
+
+  const result = candidateListSizeSchema.safeParse(Number(value))
+
+  return result.success ? result.data : undefined
 }
 
 export type CandidateFiltersProps = Readonly<{

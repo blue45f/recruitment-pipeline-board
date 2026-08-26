@@ -7,7 +7,9 @@ import {
   type CandidateListSize,
 } from '../../candidates/model'
 
-export const BOARD_PREFERENCES_STORAGE_KEY = 'recruitment-board-preferences:v1'
+import { BOARD_PREFERENCES_STORAGE_KEY } from './boardPreferences'
+
+export { BOARD_PREFERENCES_STORAGE_KEY }
 
 const persistedBoardPreferencesSchema = z
   .object({

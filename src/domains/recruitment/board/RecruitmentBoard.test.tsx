@@ -245,6 +245,10 @@ describe('RecruitmentBoard', () => {
       name: '채용 단계별 후보자 보드',
     })
 
+    await waitFor(() => {
+      expect(requestedSizes).toEqual(['200'])
+    })
+
     const listSizeSelect = screen.getByRole('combobox', {
       name: '표시할 데이터',
     })

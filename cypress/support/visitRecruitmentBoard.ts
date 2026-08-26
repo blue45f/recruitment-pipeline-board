@@ -1,6 +1,5 @@
-type CandidateListSize = 0 | 200 | 1_000
-
-const BOARD_PREFERENCES_STORAGE_KEY = 'recruitment-board-preferences:v1'
+import { BOARD_PREFERENCES_STORAGE_KEY } from '../../src/domains/recruitment/board/model/boardPreferences'
+import type { CandidateListSize } from '../../src/domains/recruitment/candidates/model'
 
 type StableMockApiVisitOptions = Readonly<{
   listSize?: CandidateListSize

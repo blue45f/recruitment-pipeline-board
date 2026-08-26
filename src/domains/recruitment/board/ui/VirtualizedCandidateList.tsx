@@ -4,6 +4,7 @@ import {
   type Range,
 } from '@tanstack/react-virtual'
 import {
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -98,6 +99,7 @@ export function VirtualizedCandidateList({
   const pendingFocusCandidateId = useRef<CandidateId | null>(null)
   const [activeCandidateId, setActiveCandidateId] =
     useState<CandidateId | null>(null)
+  const [rootFontSize, setRootFontSize] = useState(getRootFontSize)
   const resolvedActiveCandidateId = candidates.some(
     ({ id }) => id === activeCandidateId,
   )
@@ -106,9 +108,24 @@ export function VirtualizedCandidateList({
   const activeCandidateIndex = candidates.findIndex(
     ({ id }) => id === resolvedActiveCandidateId,
   )
-  const rootFontSize = getRootFontSize()
   const estimatedCandidateHeight = rootFontSize * CANDIDATE_CARD_MIN_HEIGHT_REM
   const candidateGap = rootFontSize * CANDIDATE_CARD_GAP_REM
+
+  useEffect(() => {
+    const syncRootFontSize = () => {
+      const nextRootFontSize = getRootFontSize()
+
+      setRootFontSize((currentRootFontSize) =>
+        currentRootFontSize === nextRootFontSize
+          ? currentRootFontSize
+          : nextRootFontSize,
+      )
+    }
+
+    window.addEventListener('resize', syncRootFontSize)
+
+    return () => window.removeEventListener('resize', syncRootFontSize)
+  }, [])
 
   // TanStack Virtual은 내부 측정 상태를 직접 관리한다.
   // eslint-disable-next-line react-hooks/incompatible-library

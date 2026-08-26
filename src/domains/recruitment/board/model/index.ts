@@ -7,9 +7,7 @@ export {
   writeCandidateFilters,
 } from './candidateFilters'
 export type { CandidateFilters } from './candidateFilters'
+export { BOARD_PREFERENCES_STORAGE_KEY } from './boardPreferences'
 export { groupCandidatesByStage } from './groupCandidatesByStage'
 export { useBoardDetailStore } from './useBoardDetailStore'
-export {
-  BOARD_PREFERENCES_STORAGE_KEY,
-  useBoardPreferencesStore,
-} from './useBoardPreferencesStore'
+export { useBoardPreferencesStore } from './useBoardPreferencesStore'

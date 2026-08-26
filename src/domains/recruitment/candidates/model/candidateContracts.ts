@@ -5,11 +5,7 @@ import { candidateStageSchema } from './candidateStage'
 
 export const CANDIDATE_LIST_SIZES = [0, 200, 1_000] as const
 
-export const candidateListSizeSchema = z.union([
-  z.literal(0),
-  z.literal(200),
-  z.literal(1_000),
-])
+export const candidateListSizeSchema = z.literal(CANDIDATE_LIST_SIZES)
 
 export type CandidateListSize = z.infer<typeof candidateListSizeSchema>
 

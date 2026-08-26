@@ -52,6 +52,10 @@ export function installVirtualizedListDomMocks() {
     HTMLElement.prototype,
     'scrollTo',
   )
+  const resizeObserverDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'ResizeObserver',
+  )
   const offsetHeightSpy = vi
     .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
     .mockImplementation(function (this: HTMLElement) {
@@ -73,7 +77,11 @@ export function installVirtualizedListDomMocks() {
         : (offsetWidthDescriptor?.get?.call(this) ?? 0)
     })
 
-  vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+  Object.defineProperty(globalThis, 'ResizeObserver', {
+    configurable: true,
+    value: ResizeObserverMock,
+    writable: true,
+  })
   Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
     configurable: true,
     value: function scrollTo(
@@ -97,7 +105,16 @@ export function installVirtualizedListDomMocks() {
   return () => {
     offsetHeightSpy.mockRestore()
     offsetWidthSpy.mockRestore()
-    vi.unstubAllGlobals()
+
+    if (resizeObserverDescriptor) {
+      Object.defineProperty(
+        globalThis,
+        'ResizeObserver',
+        resizeObserverDescriptor,
+      )
+    } else {
+      Reflect.deleteProperty(globalThis, 'ResizeObserver')
+    }
 
     if (scrollToDescriptor) {
       Object.defineProperty(

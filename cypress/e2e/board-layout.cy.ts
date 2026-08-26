@@ -9,7 +9,7 @@ function waitForCandidateBoard() {
     .each(($list) => {
       cy.wrap($list)
         .find('[data-virtualized-candidate-item]')
-        .should('not.be.empty')
+        .should('have.length.greaterThan', 0)
     })
 }
 
