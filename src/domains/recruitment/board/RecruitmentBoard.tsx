@@ -1,19 +1,30 @@
-import { useSuspenseQuery } from '@tanstack/react-query'
+import {
+  QueryErrorResetBoundary,
+  useSuspenseQuery,
+} from '@tanstack/react-query'
 import { Layers3, RadioTower } from 'lucide-react'
-import { Suspense } from 'react'
+import { Suspense, useRef } from 'react'
+import { ErrorBoundary } from 'react-error-boundary'
 
 import { candidateListQueryOptions } from '@/domains/recruitment/candidates/query'
 
 import { groupCandidatesByStage } from './model'
+import { BoardErrorFallback } from './ui/BoardErrorFallback'
+import { CandidateBoardSkeleton } from './ui/CandidateBoardSkeleton'
 import { CandidateBoardView } from './ui/CandidateBoardView'
+import { CandidateEmptyState } from './ui/CandidateEmptyState'
 
 function CandidateBoardContent() {
   const { data: response } = useSuspenseQuery(candidateListQueryOptions(200))
 
+  if (response.data.length === 0) {
+    return <CandidateEmptyState />
+  }
+
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-[var(--color-muted)]">
+        <p className="text-sm text-[var(--color-muted)]" role="status">
           전체{' '}
           <strong className="font-data text-[var(--color-ink)]">
             {response.meta.total.toLocaleString('ko-KR')}
@@ -33,6 +44,8 @@ function CandidateBoardContent() {
 }
 
 export function RecruitmentBoard() {
+  const boardRegionRef = useRef<HTMLElement>(null)
+
   return (
     <main className="min-h-svh bg-[var(--color-surface)] px-3 py-3 text-[var(--color-ink)] sm:px-5 sm:py-5 lg:px-7">
       <div className="mx-auto min-h-[calc(100svh-1.5rem)] max-w-[104rem] overflow-hidden border border-[var(--color-line)] bg-[var(--color-paper)] shadow-[var(--shadow-panel)] sm:min-h-[calc(100svh-2.5rem)]">
@@ -66,22 +79,34 @@ export function RecruitmentBoard() {
         <section
           aria-labelledby="pipeline-board-title"
           className="bg-[var(--color-fog)] px-3 py-5 sm:px-5 lg:px-7 lg:py-7"
+          ref={boardRegionRef}
+          tabIndex={-1}
         >
           <h2 className="sr-only" id="pipeline-board-title">
             채용 단계별 후보자
           </h2>
-          <Suspense
-            fallback={
-              <p
-                className="grid min-h-[34rem] place-items-center text-sm text-[var(--color-muted)]"
-                role="status"
+          <QueryErrorResetBoundary>
+            {({ reset }) => (
+              <ErrorBoundary
+                fallbackRender={({ error, resetErrorBoundary }) => (
+                  <BoardErrorFallback
+                    error={error}
+                    onRetry={(inputMethod) => {
+                      if (inputMethod === 'keyboard') {
+                        boardRegionRef.current?.focus()
+                      }
+                      resetErrorBoundary()
+                    }}
+                  />
+                )}
+                onReset={reset}
               >
-                후보자 목록을 불러오는 중입니다.
-              </p>
-            }
-          >
-            <CandidateBoardContent />
-          </Suspense>
+                <Suspense fallback={<CandidateBoardSkeleton />}>
+                  <CandidateBoardContent />
+                </Suspense>
+              </ErrorBoundary>
+            )}
+          </QueryErrorResetBoundary>
         </section>
       </div>
     </main>
