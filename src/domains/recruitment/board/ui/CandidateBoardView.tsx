@@ -12,32 +12,37 @@ export type CandidateBoardViewProps = Readonly<{
   candidatesByStage: Record<CandidateStage, readonly Candidate[]>
   onOpenCandidate: (candidateId: CandidateId) => void
   onPrefetchCandidate?: (candidateId: CandidateId) => void
+  scrollResetKey?: string
 }>
 
 export function CandidateBoardView({
   candidatesByStage,
   onOpenCandidate,
   onPrefetchCandidate,
+  scrollResetKey = 'initial',
 }: CandidateBoardViewProps) {
   return (
-    <div
-      aria-label="채용 단계별 후보자 보드"
-      className="overflow-x-auto overscroll-x-contain pb-3 focus-visible:ring-3 focus-visible:ring-[var(--color-focus)] focus-visible:outline-none"
-      role="region"
-      tabIndex={0}
-    >
-      <div className="flex min-w-max gap-3 sm:gap-4">
-        {CANDIDATE_STAGES.map((stage) => (
-          <CandidateStageColumn
-            candidates={candidatesByStage[stage]}
-            key={stage}
-            onOpenCandidate={onOpenCandidate}
-            {...(onPrefetchCandidate === undefined
-              ? {}
-              : { onPrefetchCandidate })}
-            stage={stage}
-          />
-        ))}
+    <div className="max-w-full overflow-hidden [contain:paint]">
+      <div
+        aria-label="채용 단계별 후보자 보드"
+        className="max-w-full overflow-x-auto overscroll-x-contain pb-3 focus-visible:ring-3 focus-visible:ring-[var(--color-focus)] focus-visible:outline-none focus-visible:ring-inset"
+        role="region"
+        tabIndex={0}
+      >
+        <div className="flex min-w-max gap-3 sm:gap-4">
+          {CANDIDATE_STAGES.map((stage) => (
+            <CandidateStageColumn
+              candidates={candidatesByStage[stage]}
+              key={stage}
+              onOpenCandidate={onOpenCandidate}
+              {...(onPrefetchCandidate === undefined
+                ? {}
+                : { onPrefetchCandidate })}
+              scrollResetKey={scrollResetKey}
+              stage={stage}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )

@@ -9,7 +9,13 @@ function waitForStableBoard() {
   cy.contains('[role="status"]', '전체 200명 중 200명을 표시합니다.').should(
     'be.visible',
   )
-  cy.get('[data-candidate-id]').its('length').should('be.greaterThan', 0)
+  cy.get('[data-virtualized-candidate-list]')
+    .should('have.length', 5)
+    .each(($list) => {
+      cy.wrap($list)
+        .find('[data-virtualized-candidate-item]')
+        .should('have.length.greaterThan', 0)
+    })
   cy.document().then(async (document) => {
     await document.fonts.ready
 
@@ -31,8 +37,11 @@ function waitForStableBoard() {
       $board.get(0).scrollTo(0, 0)
     },
   )
-  cy.get<HTMLElement>('[role="list"]').each(($list) => {
+  cy.get<HTMLElement>('[data-virtualized-candidate-list]').each(($list) => {
     $list.get(0).scrollTo(0, 0)
+    cy.wrap($list)
+      .find('[data-virtualized-candidate-item][aria-posinset="1"]')
+      .should('exist')
   })
 }
 

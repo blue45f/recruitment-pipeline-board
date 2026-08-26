@@ -9,6 +9,8 @@ import { TextField } from '@/components/ui/TextField'
 import {
   CANDIDATE_ROLES,
   CANDIDATE_ROLE_LABELS,
+  candidateListSizeSchema,
+  type CandidateListSize,
 } from '@/domains/recruitment/candidates/model'
 
 import {
@@ -26,15 +28,45 @@ const ROLE_OPTIONS = [
   })),
 ] as const
 
+const LIST_SIZE_LABELS = {
+  0: '데이터 없음 · 빈 상태',
+  200: '후보자 200명',
+  1000: '후보자 1,000명 · 가상 목록',
+} as const satisfies Record<CandidateListSize, string>
+
+const LIST_SIZE_ORDER = {
+  0: 2,
+  200: 0,
+  1000: 1,
+} as const satisfies Record<CandidateListSize, number>
+
+const LIST_SIZE_OPTIONS = [...candidateListSizeSchema.values]
+  .sort((left, right) => LIST_SIZE_ORDER[left] - LIST_SIZE_ORDER[right])
+  .map((size) => ({ label: LIST_SIZE_LABELS[size], value: String(size) }))
+
+function parseListSize(value: string): CandidateListSize | undefined {
+  if (value.trim().length === 0) {
+    return undefined
+  }
+
+  const result = candidateListSizeSchema.safeParse(Number(value))
+
+  return result.success ? result.data : undefined
+}
+
 export type CandidateFiltersProps = Readonly<{
   filters: CandidateFilterValues
+  listSize: CandidateListSize
   onFiltersChange: (filters: CandidateFilterValues) => void
+  onListSizeChange: (listSize: CandidateListSize) => void
   searchInputRef?: Ref<HTMLInputElement>
 }>
 
 export function CandidateFilters({
   filters,
+  listSize,
   onFiltersChange,
+  onListSizeChange,
   searchInputRef,
 }: CandidateFiltersProps) {
   const { control, reset } = useForm<CandidateFilterValues>({
@@ -48,7 +80,7 @@ export function CandidateFilters({
   return (
     <form
       aria-label="후보자 검색과 필터"
-      className="grid gap-4 border-b border-[var(--color-line)] bg-[var(--color-paper)] px-4 py-4 sm:px-6 md:grid-cols-[minmax(16rem,1.5fr)_minmax(12rem,0.8fr)_auto] md:items-start lg:px-8"
+      className="grid gap-4 border-b border-[var(--color-line)] bg-[var(--color-paper)] px-4 py-4 sm:px-6 md:grid-cols-2 lg:px-8 xl:grid-cols-[minmax(16rem,1.5fr)_minmax(11rem,0.75fr)_minmax(13rem,0.9fr)_auto] xl:items-start"
       onSubmit={(event) => event.preventDefault()}
       role="search"
     >
@@ -92,8 +124,22 @@ export function CandidateFilters({
         value={roleController.field.value}
       />
 
+      <SelectField
+        label="표시할 데이터"
+        name="candidate-list-size"
+        onValueChange={(value) => {
+          const nextListSize = parseListSize(value)
+
+          if (nextListSize !== undefined) {
+            onListSizeChange(nextListSize)
+          }
+        }}
+        options={LIST_SIZE_OPTIONS}
+        value={String(listSize)}
+      />
+
       <Button
-        className="disabled:text-[var(--color-muted)] disabled:opacity-100 md:mt-7 md:min-h-[2.875rem]"
+        className="disabled:text-[var(--color-muted)] disabled:opacity-100 md:min-h-[2.875rem] md:self-end md:justify-self-end xl:mt-7 xl:self-start"
         disabled={!hasFilters}
         onClick={() => {
           reset(DEFAULT_CANDIDATE_FILTERS)

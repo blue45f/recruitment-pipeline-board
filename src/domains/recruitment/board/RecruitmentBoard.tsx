@@ -8,7 +8,10 @@ import { Suspense, useDeferredValue, useRef } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useSearchParams } from 'react-router'
 
-import type { CandidateId } from '@/domains/recruitment/candidates/model'
+import type {
+  CandidateId,
+  CandidateListSize,
+} from '@/domains/recruitment/candidates/model'
 import {
   candidateDetailQueryOptions,
   candidateListQueryOptions,
@@ -22,6 +25,7 @@ import {
   writeCandidateFilters,
   type CandidateFilters,
   useBoardDetailStore,
+  useBoardPreferencesStore,
 } from './model'
 import { BoardErrorFallback } from './ui/BoardErrorFallback'
 import { CandidateBoardSkeleton } from './ui/CandidateBoardSkeleton'
@@ -32,6 +36,7 @@ import { CandidateFilters as CandidateFiltersForm } from './ui/CandidateFilters'
 
 type CandidateBoardContentProps = Readonly<{
   filters: CandidateFilters
+  listSize: CandidateListSize
   onClearFilters: (inputMethod: 'keyboard' | 'pointer') => void
   onOpenCandidate: (candidateId: CandidateId) => void
   onPrefetchCandidate: (candidateId: CandidateId) => void
@@ -39,11 +44,14 @@ type CandidateBoardContentProps = Readonly<{
 
 function CandidateBoardContent({
   filters,
+  listSize,
   onClearFilters,
   onOpenCandidate,
   onPrefetchCandidate,
 }: CandidateBoardContentProps) {
-  const { data: response } = useSuspenseQuery(candidateListQueryOptions(200))
+  const { data: response } = useSuspenseQuery(
+    candidateListQueryOptions(listSize),
+  )
   const candidates = response.data
 
   if (candidates.length === 0) {
@@ -84,6 +92,7 @@ function CandidateBoardContent({
         candidatesByStage={groupCandidatesByStage(filteredCandidates)}
         onOpenCandidate={onOpenCandidate}
         onPrefetchCandidate={onPrefetchCandidate}
+        scrollResetKey={`${listSize}:${filters.query}:${filters.role}`}
       />
     </>
   )
@@ -94,16 +103,21 @@ export function RecruitmentBoard() {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const queryClient = useQueryClient()
   const openCandidate = useBoardDetailStore((state) => state.openCandidate)
+  const listSize = useBoardPreferencesStore((state) => state.listSize)
+  const setListSize = useBoardPreferencesStore((state) => state.setListSize)
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = readCandidateFilters(searchParams)
   const deferredQuery = useDeferredValue(filters.query)
   const deferredRole = useDeferredValue(filters.role)
+  const deferredListSize = useDeferredValue(listSize)
   const deferredFilters: CandidateFilters = {
     query: deferredQuery,
     role: deferredRole,
   }
-  const isFiltering =
-    deferredQuery !== filters.query || deferredRole !== filters.role
+  const isBoardPending =
+    deferredQuery !== filters.query ||
+    deferredRole !== filters.role ||
+    deferredListSize !== listSize
   const updateFilters = (nextFilters: CandidateFilters) => {
     setSearchParams(writeCandidateFilters(nextFilters), { replace: true })
   }
@@ -140,12 +154,14 @@ export function RecruitmentBoard() {
 
         <CandidateFiltersForm
           filters={filters}
+          listSize={listSize}
           onFiltersChange={updateFilters}
+          onListSizeChange={setListSize}
           searchInputRef={searchInputRef}
         />
 
         <section
-          aria-busy={isFiltering || undefined}
+          aria-busy={isBoardPending || undefined}
           aria-labelledby="pipeline-board-title"
           className="bg-[var(--color-fog)] px-3 py-5 sm:px-5 lg:px-7 lg:py-7"
           ref={boardRegionRef}
@@ -169,10 +185,12 @@ export function RecruitmentBoard() {
                   />
                 )}
                 onReset={reset}
+                resetKeys={[deferredListSize]}
               >
                 <Suspense fallback={<CandidateBoardSkeleton />}>
                   <CandidateBoardContent
                     filters={deferredFilters}
+                    listSize={deferredListSize}
                     onClearFilters={(inputMethod) => {
                       if (inputMethod === 'keyboard') {
                         searchInputRef.current?.focus()

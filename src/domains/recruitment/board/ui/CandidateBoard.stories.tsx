@@ -7,6 +7,10 @@ import { groupCandidatesByStage } from '../model'
 import { CandidateBoardView } from './CandidateBoardView'
 
 const candidates = generateCandidateFixtures({ seed: 42, size: 200 })
+const performanceCandidates = generateCandidateFixtures({
+  seed: 20260826,
+  size: 1_000,
+})
 
 const meta = {
   component: CandidateBoardView,
@@ -22,6 +26,19 @@ type Story = StoryObj<typeof meta>
 export const TwoHundredCandidates: Story = {
   args: {
     candidatesByStage: groupCandidatesByStage(candidates),
+    onOpenCandidate: fn(),
+    onPrefetchCandidate: fn(),
+  },
+  render: (args) => (
+    <main className="min-h-svh bg-[var(--color-fog)] p-5">
+      <CandidateBoardView {...args} />
+    </main>
+  ),
+}
+
+export const ThousandCandidates: Story = {
+  args: {
+    candidatesByStage: groupCandidatesByStage(performanceCandidates),
     onOpenCandidate: fn(),
     onPrefetchCandidate: fn(),
   },
