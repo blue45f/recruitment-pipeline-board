@@ -1,5 +1,5 @@
 import { CalendarDays } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type KeyboardEvent, type Ref } from 'react'
 
 import { Badge } from '@/components/ui/Badge'
 import {
@@ -14,17 +14,30 @@ import { CANDIDATE_STAGE_PRESENTATION } from './candidateStagePresentation'
 import { formatCandidateCompactDate } from './formatCandidateDate'
 
 export type CandidateCardProps = Readonly<{
+  buttonRef?: Ref<HTMLButtonElement>
   candidate: Candidate
+  keyboardNavigationDescriptionId?: string
+  onCandidateFocus?: (candidateId: CandidateId) => void
+  onCandidateKeyDown?: (
+    candidateId: CandidateId,
+    event: KeyboardEvent<HTMLButtonElement>,
+  ) => void
   onOpenCandidate: (candidateId: CandidateId) => void
   onPrefetchCandidate?: (candidateId: CandidateId) => void
+  tabIndex?: -1 | 0
 }>
 
 const INTENT_PREFETCH_DELAY_MS = 120
 
 export function CandidateCard({
+  buttonRef,
   candidate,
+  keyboardNavigationDescriptionId,
+  onCandidateFocus,
+  onCandidateKeyDown,
   onOpenCandidate,
   onPrefetchCandidate,
+  tabIndex,
 }: CandidateCardProps) {
   const prefetchTimer = useRef<number | null>(null)
   const stage = CANDIDATE_STAGE_PRESENTATION[candidate.currentStage]
@@ -56,7 +69,13 @@ export function CandidateCard({
   return (
     <article>
       <button
+        aria-describedby={keyboardNavigationDescriptionId}
         aria-haspopup="dialog"
+        aria-keyshortcuts={
+          keyboardNavigationDescriptionId
+            ? 'ArrowUp ArrowDown Home End'
+            : undefined
+        }
         aria-label={`${candidate.name} 후보자, ${roleLabel}, 현재 단계 ${stageLabel}, 지원일 ${formatCandidateCompactDate(candidate.appliedAt)}, 상세 보기`}
         className="relative flex min-h-40 w-full cursor-pointer flex-col overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-paper)] p-4 text-left shadow-[0_1px_2px_rgba(24,32,51,0.04)] transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-[var(--color-cobalt)] hover:shadow-[0_10px_28px_rgba(24,32,51,0.10)] focus-visible:border-[var(--color-cobalt)] focus-visible:ring-3 focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-surface)] focus-visible:outline-none motion-reduce:transform-none motion-reduce:transition-none"
         data-candidate-id={candidate.id}
@@ -65,10 +84,16 @@ export function CandidateCard({
           cancelPrefetch()
           onOpenCandidate(candidate.id)
         }}
-        onFocus={schedulePrefetch}
+        onFocus={() => {
+          schedulePrefetch()
+          onCandidateFocus?.(candidate.id)
+        }}
+        onKeyDown={(event) => onCandidateKeyDown?.(candidate.id, event)}
         onPointerCancel={cancelPrefetch}
         onPointerEnter={schedulePrefetch}
         onPointerLeave={cancelPrefetch}
+        ref={buttonRef}
+        tabIndex={tabIndex}
         type="button"
       >
         <span

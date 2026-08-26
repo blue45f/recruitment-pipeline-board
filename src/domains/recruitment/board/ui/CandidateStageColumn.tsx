@@ -5,13 +5,14 @@ import {
   type CandidateStage,
 } from '@/domains/recruitment/candidates/model'
 
-import { CandidateCard } from './CandidateCard'
 import { CANDIDATE_STAGE_PRESENTATION } from './candidateStagePresentation'
+import { VirtualizedCandidateList } from './VirtualizedCandidateList'
 
 export type CandidateStageColumnProps = Readonly<{
   candidates: readonly Candidate[]
   onOpenCandidate: (candidateId: CandidateId) => void
   onPrefetchCandidate?: (candidateId: CandidateId) => void
+  scrollResetKey: string
   stage: CandidateStage
 }>
 
@@ -19,11 +20,13 @@ export function CandidateStageColumn({
   candidates,
   onOpenCandidate,
   onPrefetchCandidate,
+  scrollResetKey,
   stage,
 }: CandidateStageColumnProps) {
   const stageLabel = CANDIDATE_STAGE_LABELS[stage]
   const presentation = CANDIDATE_STAGE_PRESENTATION[stage]
   const headingId = `candidate-stage-${stage}`
+  const navigationDescriptionId = `${headingId}-navigation-description`
 
   return (
     <section
@@ -55,28 +58,28 @@ export function CandidateStageColumn({
         </span>
       </div>
 
-      <div
-        aria-label={`${stageLabel} 후보자 ${candidates.length.toLocaleString('ko-KR')}명`}
-        className="h-[34rem] [scrollbar-gutter:stable] space-y-3 overflow-y-auto overscroll-contain p-3"
-        role="list"
-      >
-        {candidates.length === 0 ? (
+      <p className="sr-only" id={navigationDescriptionId}>
+        위아래 화살표로 이전 또는 다음 후보자로 이동하고 Home과 End로 처음과
+        마지막 후보자로 이동할 수 있습니다.
+      </p>
+      {candidates.length === 0 ? (
+        <div className="h-[34rem] p-3">
           <p className="mb-3 grid min-h-32 place-items-center rounded-xl border border-dashed border-[var(--color-line-strong)] bg-[var(--color-paper)] px-5 text-center text-sm leading-6 text-[var(--color-muted)]">
             이 단계에 후보자가 없습니다.
           </p>
-        ) : null}
-        {candidates.map((candidate) => (
-          <div key={candidate.id} role="listitem">
-            <CandidateCard
-              candidate={candidate}
-              onOpenCandidate={onOpenCandidate}
-              {...(onPrefetchCandidate === undefined
-                ? {}
-                : { onPrefetchCandidate })}
-            />
-          </div>
-        ))}
-      </div>
+        </div>
+      ) : (
+        <VirtualizedCandidateList
+          candidates={candidates}
+          descriptionId={navigationDescriptionId}
+          key={scrollResetKey}
+          label={`${stageLabel} 후보자 ${candidates.length.toLocaleString('ko-KR')}명`}
+          onOpenCandidate={onOpenCandidate}
+          {...(onPrefetchCandidate === undefined
+            ? {}
+            : { onPrefetchCandidate })}
+        />
+      )}
     </section>
   )
 }

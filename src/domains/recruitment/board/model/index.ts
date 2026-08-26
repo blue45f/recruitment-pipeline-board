@@ -9,3 +9,7 @@ export {
 export type { CandidateFilters } from './candidateFilters'
 export { groupCandidatesByStage } from './groupCandidatesByStage'
 export { useBoardDetailStore } from './useBoardDetailStore'
+export {
+  BOARD_PREFERENCES_STORAGE_KEY,
+  useBoardPreferencesStore,
+} from './useBoardPreferencesStore'

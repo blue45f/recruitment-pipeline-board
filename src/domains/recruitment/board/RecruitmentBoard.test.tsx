@@ -7,6 +7,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -20,11 +21,13 @@ import {
   type Candidate,
 } from '@/domains/recruitment/candidates/model'
 import { server } from '@/mocks/server'
+import { installVirtualizedListDomMocks } from '@/test/installVirtualizedListDomMocks'
 
-import { useBoardDetailStore } from './model'
+import { useBoardDetailStore, useBoardPreferencesStore } from './model'
 import { RecruitmentBoard } from './RecruitmentBoard'
 
 const queryClients = new Set<QueryClient>()
+let restoreVirtualizedListDom: (() => void) | undefined
 
 const FILTER_CANDIDATES = [
   {
@@ -100,14 +103,23 @@ function currentSearchParams() {
 }
 
 beforeAll(() => {
+  restoreVirtualizedListDom = installVirtualizedListDomMocks()
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
     configurable: true,
     value: vi.fn(),
   })
 })
 
+beforeEach(() => {
+  localStorage.clear()
+  useBoardPreferencesStore.setState({ listSize: 200 })
+  localStorage.clear()
+})
+
 afterEach(() => {
   useBoardDetailStore.setState({ selectedCandidateId: null })
+  useBoardPreferencesStore.setState({ listSize: 200 })
+  localStorage.clear()
 
   for (const queryClient of queryClients) {
     queryClient.clear()
@@ -116,6 +128,7 @@ afterEach(() => {
 })
 
 afterAll(() => {
+  restoreVirtualizedListDom?.()
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
 })
 
@@ -154,7 +167,10 @@ describe('RecruitmentBoard', () => {
       .find((article) => within(article).queryByText(firstCandidate.name))
 
     expect(requestCount).toBe(1)
-    expect(within(board).getAllByRole('listitem')).toHaveLength(200)
+    const renderedItems = within(board).getAllByRole('listitem')
+
+    expect(renderedItems.length).toBeGreaterThan(0)
+    expect(renderedItems.length).toBeLessThan(60)
     expect(card).toBeDefined()
 
     if (!card) {
@@ -197,6 +213,71 @@ describe('RecruitmentBoard', () => {
     expect(
       await screen.findByRole('region', { name: '채용 단계별 후보자 보드' }),
     ).toBeInTheDocument()
+  })
+
+  it('1,000명 시나리오를 실제 API로 요청하고 보이는 카드만 유지한다', async () => {
+    const user = userEvent.setup()
+    const candidates = generateCandidateFixtures({
+      seed: 20260826,
+      size: 1_000,
+    })
+    const requestedSizes: string[] = []
+
+    server.use(
+      http.get('*/api/candidates', ({ request }) => {
+        const size = new URL(request.url).searchParams.get('size')
+
+        requestedSizes.push(size ?? '')
+
+        const requestedCandidates =
+          size === '1000' ? candidates : candidates.slice(0, 200)
+
+        return HttpResponse.json({
+          data: requestedCandidates,
+          meta: { total: requestedCandidates.length },
+        })
+      }),
+    )
+
+    renderBoard()
+
+    await screen.findByRole('region', {
+      name: '채용 단계별 후보자 보드',
+    })
+
+    const listSizeSelect = screen.getByRole('combobox', {
+      name: '표시할 데이터',
+    })
+
+    listSizeSelect.focus()
+    await user.keyboard(' ')
+    await screen.findByRole('option', {
+      name: '후보자 1,000명 · 가상 목록',
+    })
+    await user.keyboard('{ArrowDown}{Enter}')
+
+    await waitFor(() => {
+      expect(
+        within(
+          screen.getByRole('region', {
+            name: '채용 단계별 후보자',
+          }),
+        ).getByRole('status'),
+      ).toHaveTextContent('전체 1,000명 중 1,000명을 표시합니다.')
+    })
+
+    const board = screen.getByRole('region', {
+      name: '채용 단계별 후보자 보드',
+    })
+    const renderedItems = within(board).getAllByRole('listitem')
+
+    expect(requestedSizes).toEqual(['200', '1000'])
+    expect(useBoardPreferencesStore.getState().listSize).toBe(1_000)
+    expect(renderedItems.length).toBeGreaterThan(0)
+    expect(renderedItems.length).toBeLessThanOrEqual(60)
+    expect(
+      within(board).getAllByRole('list', { name: /후보자 200명$/ }),
+    ).toHaveLength(5)
   })
 
   it('후보자가 한 명도 없으면 전체 데이터 빈 상태를 표시한다', async () => {
