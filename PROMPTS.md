@@ -185,13 +185,15 @@
 ### AI 출력 요지
 
 - 목록·상세 query key factory와 option factory를 후보자 도메인에 두고 Ky API에 Query의 AbortSignal을 전달했다.
-- `ApiError`의 이름만 보지 않고 오류 메타데이터 전체를 확인해 retryable 조회만 한 번 재시도하도록 QueryClient 정책을 좁혔다.
+- 전역 QueryClient는 기본 재시도를 하지 않고 후보자 목록·상세 query option에서 실제 `ApiError` 인스턴스인 retryable 조회만 한 번 재시도하도록 경계를 좁혔다.
 
 ### 리뷰 / 검증
 
 - 초기 화면에 필요한 독립 요청은 후보자 목록 하나뿐이라 `useSuspenseQueries`를 먼저 도입하는 제안은 기각했다. 다섯 단계가 같은 원본을 사용하므로 목록 한 번을 받아 화면에서 분류하는 편이 요청 수와 실패 지점을 줄인다.
 - 오류 이름만 `ApiError`인 일반 객체까지 재시도하면 임의 오류를 신뢰하게 된다. `kind`, `retryable`, `safeMessage`, `status` 구조를 함께 확인하도록 보완했다.
-- 목록 크기와 후보자 ID가 query key에 반영되는지, AbortSignal이 API로 이어지는지, retryable 503은 한 번만 재시도하고 스키마 오류·404·AbortError·일반 Error는 재시도하지 않는지 전용 Vitest 9개로 확인했다.
+- CodeRabbit 전체 리뷰에서 모든 메타데이터를 흉내 낸 일반 `Error`도 기존 구조 검사에는 통과할 수 있다는 지적을 받았다. 전역 계층에서 도메인 오류 형태를 복제하던 검사를 제거하고, 후보자 query option이 실제 `ApiError` 런타임 타입을 확인하도록 옮겼다.
+- 정책을 query option으로 옮긴 뒤 첫 전체 검사에서는 상세 오류 통합 테스트가 자동 재시도 한 번으로 바로 성공해 111개 중 1개가 실패했다. 503을 두 번 응답해 자동 재시도를 소진한 뒤 사용자의 재시도에서 세 번째 요청이 복구되도록 시나리오를 실제 정책에 맞췄다.
+- 목록 크기와 후보자 ID가 query key에 반영되는지, AbortSignal이 API로 이어지는지, retryable 503은 한 번만 재시도하고 스키마 오류·404·AbortError·일반 Error·메타데이터를 위조한 Error는 재시도하지 않는지 전용 Vitest 11개로 확인했다.
 
 ## [board-layout] 다섯 단계 보드 레이아웃
 
@@ -301,6 +303,6 @@
 - Cypress에서 Mock API 실패를 막기 위한 첫 stub은 다른 브라우저 realm의 `Uint32Array`를 `instanceof`로 비교해 값을 채우지 못했다. 배열의 첫 값을 직접 설정하는 방식으로 바꾼 뒤 재현 가능한 응답을 만들었다. `cy.checkA11y` 전에 axe를 주입하지 않아 실패한 실행도 `cy.injectAxe`를 추가해 바로잡았다.
 - Cypress의 합성 Enter가 Electron에서 native button이 활성화되지 않아 E2E는 클릭·axe·포커스 복귀와 모바일 overflow로 범위를 좁혔다. Enter와 Space 활성화는 Testing Library와 실제 Chromium 키보드 조작으로 각각 확인했다. 상세 기능 중심 Vitest 6개 파일의 18개 테스트가 통과했다.
 - 마지막 읽기 전용 리뷰에서는 커밋을 막을 P0·P1·P2 항목이 없다는 결론을 받았다. 실제 모달의 loading·success·503·404 Story를 추가했다. Cypress 캡처에는 이미지 baseline 비교가 없으므로 자동화된 시각 회귀 테스트를 완료했다고 기록하지 않았다. 이번 Cypress 실행은 데스크톱·모바일 캡처를 남기는 시각 점검과 axe 검사까지 포함했다.
-- 전체 `pnpm check`에서 format, ESLint, Secretlint, Knip, 타입 검사, production build, Vitest 23개 파일의 109개 테스트와 Storybook build가 통과했다. 전체 Cypress는 기존 보드 2개와 상세 2개를 합친 4개 시나리오가 모두 통과했다.
-- PR Quality의 Linux Electron에서는 모바일 문서의 `scrollWidth`와 `clientWidth`가 375px과 390px로 달라 두 overflow 검증이 실패했다. 두 값이 항상 같다는 환경 의존 가정을 제거하고, 문서 너비가 실제 viewport의 `innerWidth`를 넘지 않는지 확인하도록 수정했다. 이 기준은 세로 스크롤바 너비는 허용하면서 가로로 튀어나온 콘텐츠는 계속 탐지한다.
+- 전체 `pnpm check`에서 format, ESLint, Secretlint, Knip, 타입 검사, production build, Vitest 23개 파일의 111개 테스트와 Storybook build가 통과했다. 전체 Cypress는 기존 보드 2개와 상세 2개를 합친 4개 시나리오가 모두 통과했다.
+- PR Quality의 Linux Electron에서는 모바일 문서의 `scrollWidth`와 `clientWidth`가 375px과 390px로 달라 두 overflow 검증이 실패했다. 두 값이 항상 같다는 환경 의존 가정을 제거하고, `scrollWidth`가 `documentElement.clientWidth`를 넘지 않는지 확인하도록 수정했다. CodeRabbit 의견 중 반대 방향의 15px overflow 해석은 Chai 오류의 actual·expected 순서와 수정 뒤 CI 결과를 대조해 적용하지 않았다.
 - 첫 커밋 시도는 제목이 대문자 `CI`로 시작해 Commitlint의 `subject-case` 규칙에 거부됐고 커밋은 생성되지 않았다. 제목을 한글 중심으로 고쳐 같은 변경을 다시 커밋했다.

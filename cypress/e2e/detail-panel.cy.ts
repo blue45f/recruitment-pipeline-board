@@ -65,7 +65,7 @@ describe('candidate detail panel', () => {
     }).should('be.visible')
     cy.window().then((browserWindow) => {
       expect(browserWindow.document.documentElement.scrollWidth).to.be.at.most(
-        browserWindow.innerWidth,
+        browserWindow.document.documentElement.clientWidth,
       )
     })
     cy.get('[role="dialog"]').then(($dialog) => {

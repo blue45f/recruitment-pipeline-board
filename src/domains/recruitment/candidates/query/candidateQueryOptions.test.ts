@@ -10,7 +10,8 @@ const apiMocks = vi.hoisted(() => ({
   updateStage: vi.fn(),
 }))
 
-vi.mock('../api', () => ({
+vi.mock('../api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api')>()),
   createCandidateApi: apiMocks.create.mockReturnValue({
     detail: apiMocks.detail,
     list: apiMocks.list,

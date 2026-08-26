@@ -19,7 +19,6 @@ import {
   generateCandidateFixtures,
   type Candidate,
 } from '@/domains/recruitment/candidates/model'
-import { ApiError } from '@/domains/recruitment/candidates/api'
 import { server } from '@/mocks/server'
 
 import { useBoardDetailStore } from './model'
@@ -54,11 +53,8 @@ const FILTER_CANDIDATES = [
   },
 ] as const satisfies readonly Candidate[]
 
-type QueryRetry = boolean | ((failureCount: number, error: unknown) => boolean)
-
 type RenderBoardOptions = Readonly<{
   initialEntry?: string
-  retry?: QueryRetry
 }>
 
 function createDeferred() {
@@ -81,13 +77,10 @@ function LocationSearchProbe() {
   return <output data-testid="location-search">{location.search}</output>
 }
 
-function renderBoard({
-  initialEntry = '/',
-  retry = false,
-}: RenderBoardOptions = {}) {
+function renderBoard({ initialEntry = '/' }: RenderBoardOptions = {}) {
   const queryClient = new QueryClient({
     defaultOptions: {
-      queries: { retry, retryDelay: 0, staleTime: 30_000 },
+      queries: { retry: false, retryDelay: 0, staleTime: 30_000 },
     },
   })
   queryClients.add(queryClient)
@@ -256,10 +249,7 @@ describe('RecruitmentBoard', () => {
     )
 
     try {
-      renderBoard({
-        retry: (failureCount, error) =>
-          failureCount < 1 && error instanceof ApiError && error.retryable,
-      })
+      renderBoard()
 
       const errorAlert = await screen.findByRole('alert')
       const boardRegion = screen.getByRole('region', {
@@ -504,7 +494,7 @@ describe('RecruitmentBoard', () => {
       http.get('*/api/candidates/:candidateId', () => {
         detailRequestCount += 1
 
-        if (detailRequestCount === 1) {
+        if (detailRequestCount <= 2) {
           return HttpResponse.json(
             { message: internalMessage },
             {
@@ -550,7 +540,7 @@ describe('RecruitmentBoard', () => {
           name: `${candidate.name} 후보자 상세 정보`,
         }),
       ).toBeInTheDocument()
-      expect(detailRequestCount).toBe(2)
+      expect(detailRequestCount).toBe(3)
     } finally {
       consoleError.mockRestore()
     }

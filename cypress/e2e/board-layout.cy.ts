@@ -13,7 +13,7 @@ describe('recruitment board layout', () => {
 
     cy.window().then((browserWindow) => {
       expect(browserWindow.document.documentElement.scrollWidth).to.be.at.most(
-        browserWindow.innerWidth,
+        browserWindow.document.documentElement.clientWidth,
       )
     })
     cy.get('[aria-label="채용 단계별 후보자 보드"]').then(($board) => {

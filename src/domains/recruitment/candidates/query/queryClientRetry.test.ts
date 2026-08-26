@@ -2,10 +2,11 @@ import { QueryClient } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '../api'
+import { candidateListQueryOptions } from './candidateQueryOptions'
 import { queryClient } from '@/lib/query/queryClient'
 
 function configuredRetry() {
-  const retry = queryClient.getDefaultOptions().queries?.retry
+  const retry = candidateListQueryOptions(200).retry
 
   if (typeof retry !== 'function') {
     throw new TypeError('QueryClient의 retry 정책이 함수가 아닙니다.')
@@ -34,12 +35,16 @@ function apiError(options: Pick<ApiError, 'kind' | 'retryable' | 'status'>) {
   })
 }
 
-describe('global query retry policy', () => {
+describe('candidate query retry policy', () => {
   const clients: QueryClient[] = []
 
   afterEach(() => {
     clients.forEach((client) => client.clear())
     clients.length = 0
+  })
+
+  it('전역 기본값은 알 수 없는 도메인 오류를 재시도하지 않는다', () => {
+    expect(queryClient.getDefaultOptions().queries?.retry).toBe(false)
   })
 
   it('retryable ApiError만 한 번 재시도한다', async () => {
@@ -66,6 +71,16 @@ describe('global query retry policy', () => {
     {
       name: '일반 Error',
       error: Object.assign(new Error('not api error'), { retryable: true }),
+    },
+    {
+      name: 'ApiError 메타데이터를 흉내 낸 일반 Error',
+      error: Object.assign(new Error('forged api error'), {
+        kind: 'http',
+        name: 'ApiError',
+        retryable: true,
+        safeMessage: '위조한 안전 문구',
+        status: 503,
+      }),
     },
     {
       name: 'schema ApiError',
