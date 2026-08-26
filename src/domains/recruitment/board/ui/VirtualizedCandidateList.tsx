@@ -99,6 +99,7 @@ export type VirtualizedCandidateListProps = Readonly<{
   onOpenCandidate: (candidateId: CandidateId) => void
   onPrefetchCandidate?: (candidateId: CandidateId) => void
   pendingCandidateIds: ReadonlySet<CandidateId>
+  stageChangeDisabledCandidateIds: ReadonlySet<CandidateId>
 }>
 
 export function VirtualizedCandidateList({
@@ -110,6 +111,7 @@ export function VirtualizedCandidateList({
   onOpenCandidate,
   onPrefetchCandidate,
   pendingCandidateIds,
+  stageChangeDisabledCandidateIds,
 }: VirtualizedCandidateListProps) {
   const scrollElementRef = useRef<HTMLUListElement>(null)
   const candidateDetailButtons = useRef(
@@ -193,7 +195,9 @@ export function VirtualizedCandidateList({
       return
     }
 
-    const action = 'stage'
+    const action = stageChangeDisabledCandidateIds.has(focusRequest.candidateId)
+      ? 'detail'
+      : 'stage'
 
     handledFocusRequestId.current = focusRequest.requestId
     pendingFocus.current = {
@@ -203,7 +207,7 @@ export function VirtualizedCandidateList({
     setActiveAction(action)
     setActiveCandidateId(focusRequest.candidateId)
     virtualizer.scrollToIndex(targetIndex, { align: 'center' })
-  }, [candidates, focusRequest, virtualizer])
+  }, [candidates, focusRequest, stageChangeDisabledCandidateIds, virtualizer])
 
   useLayoutEffect(() => {
     const pendingTarget = pendingFocus.current
@@ -243,7 +247,11 @@ export function VirtualizedCandidateList({
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       const targetAction = event.key === 'ArrowLeft' ? 'detail' : 'stage'
 
-      if (targetAction === action) {
+      if (
+        targetAction === action ||
+        (targetAction === 'stage' &&
+          stageChangeDisabledCandidateIds.has(candidateId))
+      ) {
         return
       }
 
@@ -356,7 +364,13 @@ export function VirtualizedCandidateList({
           return null
         }
 
-        const resolvedActiveAction = activeAction
+        const isActiveCandidate = candidate.id === resolvedActiveCandidateId
+        const resolvedActiveAction =
+          isActiveCandidate &&
+          activeAction === 'stage' &&
+          stageChangeDisabledCandidateIds.has(candidate.id)
+            ? 'detail'
+            : activeAction
 
         return (
           <li
@@ -375,7 +389,7 @@ export function VirtualizedCandidateList({
             }}
           >
             <CandidateCard
-              {...(candidate.id === resolvedActiveCandidateId
+              {...(isActiveCandidate
                 ? { activeAction: resolvedActiveAction }
                 : {})}
               detailButtonRef={(button) => {
@@ -386,8 +400,11 @@ export function VirtualizedCandidateList({
                 }
               }}
               candidate={candidate}
+              isStageChangeDisabled={stageChangeDisabledCandidateIds.has(
+                candidate.id,
+              )}
               isStageChangePending={pendingCandidateIds.has(candidate.id)}
-              {...(candidate.id === resolvedActiveCandidateId
+              {...(isActiveCandidate
                 ? { keyboardNavigationDescriptionId: descriptionId }
                 : {})}
               onCandidateActionFocus={(candidateId, action) => {

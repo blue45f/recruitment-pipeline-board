@@ -18,6 +18,7 @@ export type CandidateCardProps = Readonly<{
   activeAction?: CandidateCardAction
   candidate: Candidate
   detailButtonRef?: Ref<HTMLButtonElement>
+  isStageChangeDisabled?: boolean
   isStageChangePending?: boolean
   keyboardNavigationDescriptionId?: string
   onCandidateActionFocus?: (
@@ -43,6 +44,7 @@ export function CandidateCard({
   activeAction,
   candidate,
   detailButtonRef,
+  isStageChangeDisabled = false,
   isStageChangePending = false,
   keyboardNavigationDescriptionId,
   onCandidateActionFocus,
@@ -171,6 +173,7 @@ export function CandidateCard({
           }
           className="w-full"
           data-stage-change-candidate-id={candidate.id}
+          disabled={isStageChangeDisabled}
           onClick={() => onChangeStage(candidate)}
           onFocus={() => onCandidateActionFocus?.(candidate.id, 'stage')}
           onKeyDown={(event) =>

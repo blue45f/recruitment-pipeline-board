@@ -9,8 +9,9 @@ import {
   MoveExecutionError,
   createCandidateMovementCoordinator,
   type CandidateMoveCommand,
+  type CandidateMoveExecution,
   type CandidateMoveIntent,
-  type CandidateMoveResult,
+  type CandidateMovementNotification,
 } from './CandidateMovementCoordinator'
 
 const CANDIDATE_A_ID = 'candidate-a' as CandidateId
@@ -80,6 +81,10 @@ function candidateFromCommand(command: CandidateMoveCommand): Candidate {
   )
 }
 
+function successfulExecution(candidate: Candidate): CandidateMoveExecution {
+  return { candidate }
+}
+
 function executionError(
   kind:
     'failed' | 'idempotency-conflict' | 'revision-conflict' | 'unknown-outcome',
@@ -96,7 +101,7 @@ function createControlledHarness(options: { maxConcurrency?: number } = {}) {
     [candidateB.id, candidateB],
   ])
   const executions: PendingExecution[] = []
-  const notifications: CandidateMoveResult[] = []
+  const notifications: CandidateMovementNotification[] = []
   let nextId = 0
   const mergeConfirmed = vi.fn((candidate: Candidate) => {
     confirmed.set(candidate.id, candidate)
@@ -105,7 +110,7 @@ function createControlledHarness(options: { maxConcurrency?: number } = {}) {
     const deferred = createDeferred<Candidate>()
 
     executions.push({ command, deferred })
-    return deferred.promise
+    return deferred.promise.then(successfulExecution)
   })
   const reconcile = vi.fn(async (candidateId: CandidateId) => {
     const candidate = confirmed.get(candidateId)
@@ -116,7 +121,7 @@ function createControlledHarness(options: { maxConcurrency?: number } = {}) {
 
     return candidate
   })
-  const notify = vi.fn((result: CandidateMoveResult) => {
+  const notify = vi.fn((result: CandidateMovementNotification) => {
     notifications.push(result)
   })
   const coordinator = createCandidateMovementCoordinator(
@@ -191,7 +196,9 @@ function createVerificationSchedulingHarness() {
     const deferred = createDeferred<Candidate>()
 
     pendingMoves.set(command.candidateId, deferred)
-    return trackTransport(`move:${command.candidateId}`, deferred.promise)
+    return trackTransport(`move:${command.candidateId}`, deferred.promise).then(
+      successfulExecution,
+    )
   })
   const reconcile = vi.fn((candidateId: CandidateId) => {
     if (isSeedingVerification && candidateId === verificationCandidate.id) {
@@ -538,7 +545,10 @@ describe('CandidateMovementCoordinator scheduling', () => {
       const deferred = createDeferred<Candidate>()
 
       pendingMoves.set(command.candidateId, deferred)
-      return trackTransport(`move:${command.candidateId}`, deferred.promise)
+      return trackTransport(
+        `move:${command.candidateId}`,
+        deferred.promise,
+      ).then(successfulExecution)
     })
     const reconcile = vi.fn((candidateId: CandidateId) => {
       if (isSeedingVerification && verificationCandidateIds.has(candidateId)) {
@@ -1003,7 +1013,7 @@ describe('CandidateMovementCoordinator unknown outcomes', () => {
         throw executionError('unknown-outcome')
       }
 
-      return candidateFromCommand(command)
+      return successfulExecution(candidateFromCommand(command))
     })
     const reconcile = vi.fn(async () => candidate)
     const coordinator = createCandidateMovementCoordinator(
@@ -1125,7 +1135,7 @@ describe('CandidateMovementCoordinator unknown outcomes', () => {
         throw executionError('unknown-outcome', '저장 결과를 확인해 주세요.')
       }
 
-      return candidateFromCommand(command)
+      return successfulExecution(candidateFromCommand(command))
     })
     const coordinator = createCandidateMovementCoordinator(
       {
@@ -1224,7 +1234,7 @@ describe('CandidateMovementCoordinator unknown outcomes', () => {
         throw executionError('unknown-outcome')
       }
 
-      return candidateFromCommand(command)
+      return successfulExecution(candidateFromCommand(command))
     })
     const reconcile = vi.fn(async () => {
       if (!canReconcile) {

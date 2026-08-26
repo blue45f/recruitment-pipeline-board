@@ -557,3 +557,72 @@
 - 실패 안내의 `#667085` 본문과 `#fff0f1` 배경은 계산상 약 4.498:1로 일반 텍스트 AA 기준 4.5:1보다 근소하게 낮았다. AccessLint 브라우저 엔진에서도 serious `color-contrast` 한 건으로 재현됐다. 아직 E2E에 나오지 않은 재확인 안내의 같은 본문색과 `#e9efff` 배경도 4.32:1로 같은 위반임을 확인했다.
 - 본문을 `#182033`인 기존 ink 토큰으로 바꾼 뒤 실패 안내는 약 14.68:1, 재확인 안내는 약 14.12:1이 됐다. 두 HTML 조합을 같은 AccessLint 규칙으로 다시 검사해 각각 위반 0건을 확인했다.
 - 관련 Vitest 2개 파일의 8개 테스트와 타입 검사, ESLint가 통과했다. 실패·재시도 axe 검사를 포함한 stage-move Cypress 3개 시나리오도 Chrome 151과 Electron 138에서 각각 모두 통과했다. 새 커밋의 원격 Quality와 고정 Linux 시각 비교가 통과하기 전에는 병합하지 않는다.
+
+## [undo] 최근 확정 이동 되돌리기
+
+### 프롬프트 1
+
+> 선택 사항과 도전 요구 사항 및 가점 사항들도 모두 구현해줘
+
+### AI 출력 요지
+
+- 서버가 일반 단계 이동을 확정했을 때만 이전 단계, 현재 단계, 원 요청 ID와 revision을 담은 검증된 Undo receipt를 반환한다. 실패했거나 아직 결과를 알 수 없는 요청에는 되돌리기를 열지 않는다.
+- Undo는 원 요청 ID를 참조하는 보상 명령으로 처리한다. Mock API는 보상 이력을 원자적으로 확인하고 기록해 같은 이동을 한 번만 되돌린다. 오래됐거나 이미 사용한 receipt는 `UNDO_NOT_AVAILABLE`로 거절한다.
+- 일반 이동과 Undo는 후보자별 직렬 처리, 전역 FIFO 대기열, 최대 네 건의 동시 실행 제한을 함께 사용한다. 보상 요청도 같은 낙관적 투영과 작업 단위 rollback, 결과 불명 재확인 경로를 거친다. 다만 409에서는 최신 revision으로 다시 맞춰 보내지 않고 현재 확정 단계를 유지한다.
+- 되돌리기 동작은 사라지는 toast 대신 보드 또는 열린 상세 모달 안에 지속적인 안내로 한 번만 표시한다. 서버 결과가 확인되기 전에는 노출하지 않는다. 새로고침 뒤에는 과거 동작을 복원하지 않는다.
+
+### 리뷰 / 검증
+
+- API 실행 결과에 receipt를 추가한 첫 타입 검사에서는 기존 어댑터와 테스트 fixture가 후보자만 반환해 오류가 났다. 실행 결과 계약과 fixture를 함께 바꾼 뒤 기존 coordinator 테스트 25개가 모두 통과했다.
+- 보드 통합 테스트를 처음 실행했을 때 테스트 헬퍼의 후보자 이름 오타 때문에 새 시나리오 네 개가 모두 실패했다. 오타를 고친 뒤 낙관적 되돌림, 실패 rollback과 재시도, 모달 안의 단일 액션과 키보드 포커스, 새로고침 뒤 상태를 다시 확인했다.
+- Undo 진행 중 다른 후보자의 더 최신 이동이 먼저 끝나는 테스트에서 최신 receipt가 사라지는 경쟁 조건을 재현했다. 진행 중인 Undo보다 나중에 접수된 receipt를 잠시 보관했다가 기존 Undo가 끝난 뒤 승격하도록 고쳤다. 두 완료 순서와 같은 후보자의 연속 이동을 포함한 coordinator 회귀 테스트 16개가 모두 통과했다.
+- 읽기 전용 UI 계약 리뷰에서 결과 재확인 중에도 단계 변경 버튼이 활성화되는 문제, 늦게 끝난 Undo가 새 모달의 포커스를 가져가는 문제, 모달 바깥 toast 닫기 버튼, 안전한 실패 사유 누락과 다른 후보자 상세에서 숨는 재시도 안내가 발견됐다. 단계 변경 잠금 범위를 넓히고 완료 시점의 선택 상태를 다시 확인했다. 상세 모달 안에는 전역 안내를 한 번만 배치하고 toast는 조작 요소 없이 보조 알림만 맡겼다. 수정 뒤 정확성·접근성·API 계약 범위의 P0·P1·P2 항목은 남지 않았고 관련 테스트 79개가 통과했다.
+- Cypress에서는 MSW Service Worker가 처리하는 PATCH를 `cy.intercept`가 직접 보지 못했다. 보드 로딩 뒤에는 현재 MSW fetch 바깥에 관찰 계층을 두고 503·409 응답을 전용 테스트 경로로 반환했다. native Enter와 `.type('{enter}')`는 Electron에서 포커스만 유지해 보상 요청을 시작하지 않았고, 추가 클릭 없는 native Space 입력으로 키보드 경로를 고정했다. 성공 receipt와 보상 본문, 한 번만 실행되는 보상, 실패 rollback·재시도, 409에서 추가 재조정 없음, 결과 불명 재확인과 새로고침 뒤 확정 상태를 포함한 단계 이동 E2E 8개가 통과했다.
+- 상태별 axe 검사를 넓힌 첫 실행에서는 모달 배경의 의도된 inert 목록 외에도 단계 액션이 비활성화된 후보자의 roving tab stop이 사라지는 문제와 Sonner 성공 알림의 색상 대비를 확인했다. 비활성 단계 액션 대신 같은 후보자의 상세 액션을 tab stop으로 유지하고, rich color 알림에 기존 AA 색상 토큰을 적용했다. available·pending·failure·verification-required와 상세 모달 안 Undo를 포함한 최종 `body`·모달 검사는 모두 통과했다.
+- 최신 production 화면을 내부 브라우저에서 다시 확인했다. 보드에는 되돌리기 액션이 한 개만 있었다. 다른 후보자 상세를 열면 같은 액션 한 개가 모달 안으로 이동했다. 모달 밖 Undo 버튼과 toast 닫기 버튼은 모두 0개였다.
+- 첫 `pnpm check`는 roving tab stop 보완 파일의 Prettier 차이로 중단됐다. 해당 파일을 포맷한 뒤 전체 게이트를 다시 실행했다. Vitest는 37개 파일 263개가 통과했고 커버리지는 statements 91.41%, branches 83.87%, functions 93.82%, lines 93.75%였다. 정적 의존성 검사는 불필요하게 export한 내부 타입 두 개를 찾아 공개 범위에서 제외한 뒤 통과했으며 format, ESLint, Secretlint, 타입 검사, production build와 Storybook build도 통과했다.
+- AccessLint의 live URL 검사에서는 Undo가 아닌 공용 표시 수 Select의 접근 가능한 이름에 보이는 선택값이 포함되지 않았다는 serious 항목 한 건이 남았다. 이 결과를 오탐으로 닫지 않고 공용 컴포넌트 계약은 별도 리뷰 보완으로 수정한다.
+
+## [review-fix] Select 음성 제어 이름 보완
+
+### 프롬프트 1
+
+> 도전 유구사항 특히 웹접근성 잘 챙겨줘
+
+### AI 출력 요지
+
+- 공용 Select의 접근 가능한 이름에 필드 라벨과 화면에 보이는 현재 선택값을 함께 연결한다. 선택이 바뀌면 접근 가능한 이름도 같은 값으로 갱신한다.
+- 기존 설명과 오류 연결, 키보드 선택, 포커스 복귀는 유지한다. 보드 테스트는 바뀐 이름 계약으로 실제 선택값까지 확인한다.
+
+### 리뷰 / 검증
+
+- Undo 상태를 포함한 live URL 검사에서 `표시할 데이터` Select의 화면 문구 `후보자 200명`이 접근 가능한 이름에 없다는 serious `label-content-mismatch` 한 건이 발견됐다. 이전처럼 combobox의 값이 따로 전달된다는 이유로 오탐 처리하지 않고 음성 제어 사용자가 보이는 문구로 컨트롤을 찾을 수 있게 `aria-labelledby`에 라벨과 현재 값 ID를 함께 연결했다.
+- 수정 뒤 Select와 보드 통합 테스트 14개, 타입 검사와 ESLint, production build가 통과했다. 같은 production URL을 AccessLint의 minor 이상 전체 규칙으로 다시 검사해 위반 0건을 확인했다.
+
+## [review-fix] Undo 응답 계약과 CI 경쟁 조건 보완
+
+### 프롬프트 1
+
+> 코드 래빗 리뷰 받은건 너가 확인해서 수정해주고 코드 래빗 뿐 아니라 클로드나 재미나이 리뷰도 함께 받으면서 진행해줘
+
+### 프롬프트 2
+
+> e2e 테스트나 vitest도 추가해줘
+
+### AI 출력 요지
+
+- 일반 단계 이동이 성공하면 검증된 `undoReceipt`가 반드시 포함되고 보상 이동 응답에는 새 receipt가 없어야 한다는 계약을 요청-응답 상관 검증에 반영한다. 응답과 요청의 상관관계를 검사하는 fixture도 의도한 불일치까지 도달하도록 바로잡는다.
+- Cypress가 관찰한 PATCH 본문은 테스트 전용 타입 단언 대신 애플리케이션과 같은 Zod 스키마로 검증한다.
+- SonarCloud의 유지보수 지적은 조건식과 중복 타입, coordinator 제어 흐름, 상세 모달의 Undo 안내 구조를 정리하는 범위에서 반영한다. 후보자별 직렬 처리, 전역 FIFO와 최대 네 건 제한, Undo 409의 no-rebase 동작은 바꾸지 않는다.
+
+### 리뷰 / 검증
+
+- CodeRabbit은 일반 단계 이동 응답에서 `undoReceipt`가 빠져도 성공으로 받아들이는 문제와 응답 상관관계 테스트 fixture가 의도한 검증보다 먼저 receipt 불변 조건에서 실패하는 문제를 지적했다. 일반 이동과 보상 이동의 receipt 존재 조건을 상관 검증에 추가하고 fixture의 expected revision과 committed revision을 함께 조정해 각 테스트가 맡은 계약을 직접 확인하도록 고쳤다.
+- Cypress의 PATCH 관찰 계층은 raw body를 공유 `candidateStageUpdateRequestSchema`로 parse한다. `undefined` 비교 네 곳은 명시적인 Chai assertion으로 정리했다.
+- SonarCloud가 보고한 유지보수 이슈 11건을 현재 코드와 대조했다. 보드의 중첩 조건식, 중복 Undo 결과 alias, optional chain, Undo 409 reconcile의 중복 반환, 상세 모달의 인지 복잡도와 region 시맨틱을 정리했다. 409에서는 최신 확정 후보자만 병합하고 원래 실패를 유지하며 과거 단계나 새 revision으로 보상 요청을 다시 만들지 않는다. `revision-conflict`와 `undo-unavailable`, reconcile 실패와 일반 503을 나눠 회귀 테스트를 보강했다.
+- 첫 원격 Quality 실행은 17개 중 16개가 통과했고 두 번 누른 Undo의 보상 요청 수가 관찰 시점에 0으로 남아 한 시나리오가 실패했다. 최신 실행은 8개 중 6개가 통과했다. 같은 보상 요청 수 실패에 더해 409 오류 문구가 있는 toast 노드를 찾았지만 5초 동안 opacity가 0이라 가시성 assertion이 실패했다.
+- 이 두 경쟁 조건은 보상 요청을 fetch 계층에서 실제로 관찰할 때 resolve되는 Promise를 기다린 뒤 요청 수를 확인하고 Sonner toast 중 `mounted`, `visible`, `removed` lifecycle이 활성 상태인 노드만 선택하도록 고쳤다. 비재시도 Undo 오류 toast의 표시 시간도 8초로 맞췄다.
+- 로컬에서는 관련 Vitest 6개 파일의 69개 테스트가 통과했다. 새 production build로 문제가 있었던 stage-move Cypress spec의 8개 시나리오를 별도로 두 번 연속 실행해 모두 8/8로 통과했다. 이어서 Electron production Cypress 전체 4개 spec의 17개 시나리오도 17/17로 통과했다. 구성은 board layout 3개, detail 2개, stage-move/Undo 8개, virtualized board 4개다. 전체 실행까지 포함하면 stage-move spec은 현재 세 번 연속 통과한 상태다.
+- 리뷰 보완 뒤 처음 실행한 전체 `pnpm check`는 Vitest 266개 중 보드 단계 이동 통합 테스트 2개가 실패했다. 예전 테스트의 성공 PATCH fixture 세 곳에 새 필수 값인 `undoReceipt`가 없어서 coordinator가 응답을 결과 불명으로 분류하고 재전송한 것이 원인이었다. 세 fixture 모두 요청의 mutation ID로 commit하고 공유 응답 스키마를 통과하는 receipt를 만들도록 고친 뒤, 해당 통합 테스트 파일의 6개 테스트가 통과했다.
+- 전체 `pnpm check`를 다시 실행해 format, ESLint, Secretlint, Knip, 타입 검사, production build, Vitest 37개 파일의 266개 테스트와 Storybook build가 모두 통과했다. 커버리지는 statements 91.38%, branches 83.69%, functions 93.83%, lines 93.79%였다.
+- 수정한 최신 head의 CodeRabbit 재리뷰 요청은 rate limit에 걸려 이전 리뷰 이후의 변경까지 검토됐다고 기록하지 않는다. Claude나 Gemini의 별도 응답도 이번 검증 결과에 포함하지 않았다. 최신 원격 Quality, SonarCloud, 시각 비교는 커밋과 push 전이라 아직 실행 결과가 없으므로 완료로 기록하지 않는다.

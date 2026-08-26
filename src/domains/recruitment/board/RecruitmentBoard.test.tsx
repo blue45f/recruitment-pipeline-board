@@ -255,7 +255,7 @@ describe('RecruitmentBoard', () => {
     })
 
     const listSizeSelect = screen.getByRole('combobox', {
-      name: '표시할 데이터',
+      name: '표시할 데이터 후보자 200명',
     })
 
     listSizeSelect.focus()
@@ -405,7 +405,9 @@ describe('RecruitmentBoard', () => {
       expect(currentSearchParams().get('query')).toBe('김')
     })
 
-    const roleSelect = screen.getByRole('combobox', { name: '직무' })
+    const roleSelect = screen.getByRole('combobox', {
+      name: '직무 전체 직무',
+    })
     roleSelect.focus()
     await user.keyboard(' ')
     await screen.findByRole('option', { name: '전체 직무' })
@@ -436,9 +438,9 @@ describe('RecruitmentBoard', () => {
     expect(screen.getByRole('searchbox', { name: '후보자 검색' })).toHaveValue(
       '김',
     )
-    expect(screen.getByRole('combobox', { name: '직무' })).toHaveTextContent(
-      '전체 직무',
-    )
+    expect(
+      screen.getByRole('combobox', { name: '직무 전체 직무' }),
+    ).toHaveTextContent('전체 직무')
   })
 
   it('검색 결과를 키보드로 지우면 입력에 포커스를 돌려주고 전체 목록을 보여준다', async () => {

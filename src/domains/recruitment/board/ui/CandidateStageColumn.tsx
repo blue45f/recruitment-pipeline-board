@@ -18,7 +18,10 @@ export type CandidateStageColumnProps = Readonly<{
   pendingCandidateIds: ReadonlySet<CandidateId>
   scrollResetKey: string
   stage: CandidateStage
+  stageChangeDisabledCandidateIds?: ReadonlySet<CandidateId>
 }>
+
+const EMPTY_STAGE_CHANGE_DISABLED_CANDIDATE_IDS = new Set<CandidateId>()
 
 export function CandidateStageColumn({
   candidates,
@@ -29,6 +32,7 @@ export function CandidateStageColumn({
   pendingCandidateIds,
   scrollResetKey,
   stage,
+  stageChangeDisabledCandidateIds = EMPTY_STAGE_CHANGE_DISABLED_CANDIDATE_IDS,
 }: CandidateStageColumnProps) {
   const stageLabel = CANDIDATE_STAGE_LABELS[stage]
   const presentation = CANDIDATE_STAGE_PRESENTATION[stage]
@@ -89,6 +93,7 @@ export function CandidateStageColumn({
           onChangeStage={onChangeStage}
           onOpenCandidate={onOpenCandidate}
           pendingCandidateIds={pendingCandidateIds}
+          stageChangeDisabledCandidateIds={stageChangeDisabledCandidateIds}
           {...prefetchCandidateProps}
         />
       )}

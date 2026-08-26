@@ -17,6 +17,7 @@ export type CandidateBoardViewProps = Readonly<{
   onPrefetchCandidate?: (candidateId: CandidateId) => void
   pendingCandidateIds?: ReadonlySet<CandidateId>
   scrollResetKey?: string
+  stageChangeDisabledCandidateIds?: ReadonlySet<CandidateId>
 }>
 
 const EMPTY_PENDING_CANDIDATE_IDS = new Set<CandidateId>()
@@ -29,6 +30,7 @@ export function CandidateBoardView({
   onPrefetchCandidate,
   pendingCandidateIds = EMPTY_PENDING_CANDIDATE_IDS,
   scrollResetKey = 'initial',
+  stageChangeDisabledCandidateIds = EMPTY_PENDING_CANDIDATE_IDS,
 }: CandidateBoardViewProps) {
   return (
     <div className="max-w-full overflow-hidden [contain:paint]">
@@ -52,6 +54,7 @@ export function CandidateBoardView({
               scrollResetKey={scrollResetKey}
               pendingCandidateIds={pendingCandidateIds}
               stage={stage}
+              stageChangeDisabledCandidateIds={stageChangeDisabledCandidateIds}
             />
           ))}
         </div>

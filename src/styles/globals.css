@@ -89,6 +89,27 @@ h3 {
   outline-offset: 3px;
 }
 
+[data-sonner-toaster][data-sonner-theme='light']
+  [data-rich-colors='true'][data-sonner-toast][data-type='success'] {
+  --success-bg: var(--color-success-soft);
+  --success-border: var(--color-success);
+  --success-text: var(--color-success);
+}
+
+[data-sonner-toaster][data-sonner-theme='light']
+  [data-rich-colors='true'][data-sonner-toast][data-type='warning'] {
+  --warning-bg: var(--color-warning-soft);
+  --warning-border: var(--color-warning);
+  --warning-text: var(--color-warning);
+}
+
+[data-sonner-toaster][data-sonner-theme='light']
+  [data-rich-colors='true'][data-sonner-toast][data-type='error'] {
+  --error-bg: var(--color-danger-soft);
+  --error-border: var(--color-danger);
+  --error-text: var(--color-danger);
+}
+
 .font-data {
   font-family: var(--font-data);
   font-variant-numeric: tabular-nums;

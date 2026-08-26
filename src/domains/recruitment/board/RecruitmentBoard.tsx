@@ -44,6 +44,7 @@ import {
   CandidateStageMoveErrorNotice,
   CandidateStageMoveVerificationNotice,
 } from './ui/CandidateStageMoveErrorNotice'
+import { CandidateStageMoveUndoNotice } from './ui/CandidateStageMoveUndoNotice'
 
 type CandidateBoardContentProps = Readonly<{
   filters: CandidateFilters
@@ -55,6 +56,7 @@ type CandidateBoardContentProps = Readonly<{
   onPrefetchCandidate: (candidateId: CandidateId) => void
   pendingCandidateIds: ReadonlySet<CandidateId>
   stageProjectionByCandidateId: CandidateStageProjection
+  stageChangeDisabledCandidateIds: ReadonlySet<CandidateId>
 }>
 
 function CandidateBoardContent({
@@ -67,6 +69,7 @@ function CandidateBoardContent({
   onPrefetchCandidate,
   pendingCandidateIds,
   stageProjectionByCandidateId,
+  stageChangeDisabledCandidateIds,
 }: CandidateBoardContentProps) {
   const { data: response } = useSuspenseQuery(
     candidateListQueryOptions(listSize),
@@ -118,6 +121,7 @@ function CandidateBoardContent({
         onPrefetchCandidate={onPrefetchCandidate}
         pendingCandidateIds={pendingCandidateIds}
         scrollResetKey={`${listSize}:${filters.query}:${filters.role}`}
+        stageChangeDisabledCandidateIds={stageChangeDisabledCandidateIds}
       />
     </>
   )
@@ -138,6 +142,9 @@ export function RecruitmentBoard() {
     stageMoveFailureByCandidateId,
     stageMoveVerificationByCandidateId,
     stageProjectionByCandidateId,
+    undoLatest,
+    undoPendingCandidateIds,
+    undoState,
     verificationPendingCandidateIds,
     verifyCandidate,
   } = useCandidateStageMove()
@@ -188,6 +195,32 @@ export function RecruitmentBoard() {
   const boardStageMoveVerifications = Array.from(
     stageMoveVerificationByCandidateId.values(),
   ).filter(({ candidateId }) => candidateId !== selectedCandidateId)
+  const undoLatestFromBoard = (inputMethod: 'keyboard' | 'pointer') => {
+    const receipt = undoState?.receipt
+    const submission = undoLatest()
+
+    if (inputMethod !== 'keyboard' || receipt === undefined) return
+
+    if (submission.accepted) {
+      void submission.completion.then(() => {
+        if (useBoardDetailStore.getState().selectedCandidateId === null) {
+          requestCandidateStageFocus(receipt.candidateId)
+        }
+      })
+      return
+    }
+
+    requestCandidateStageFocus(receipt.candidateId)
+  }
+  const undoStageChangeDisabledCandidateIds =
+    undoState?.status === 'verification-required'
+      ? new Set([...undoPendingCandidateIds, undoState.receipt.candidateId])
+      : undoPendingCandidateIds
+  const boardUndoSafeMessageProps =
+    undoState?.status === 'failure' ||
+    undoState?.status === 'verification-required'
+      ? { safeMessage: undoState.safeMessage }
+      : {}
 
   return (
     <main className="min-h-svh bg-[var(--color-surface)] px-3 py-3 text-[var(--color-ink)] sm:px-5 sm:py-5 lg:px-7">
@@ -237,6 +270,18 @@ export function RecruitmentBoard() {
           <h2 className="sr-only" id="pipeline-board-title">
             채용 단계별 후보자
           </h2>
+          {undoState && selectedCandidateId === null ? (
+            <div className="mb-4">
+              <CandidateStageMoveUndoNotice
+                candidateName={undoState.receipt.candidateName}
+                fromStage={undoState.receipt.fromStage}
+                onAction={undoLatestFromBoard}
+                {...boardUndoSafeMessageProps}
+                status={undoState.status}
+                toStage={undoState.receipt.toStage}
+              />
+            </div>
+          ) : null}
           {boardStageMoveFailures.length > 0 ||
           boardStageMoveVerifications.length > 0 ? (
             <div className="mb-4 grid gap-3">
@@ -307,6 +352,9 @@ export function RecruitmentBoard() {
                     }}
                     pendingCandidateIds={pendingCandidateIds}
                     stageProjectionByCandidateId={stageProjectionByCandidateId}
+                    stageChangeDisabledCandidateIds={
+                      undoStageChangeDisabledCandidateIds
+                    }
                   />
                 </Suspense>
               </ErrorBoundary>
@@ -319,10 +367,13 @@ export function RecruitmentBoard() {
         onChangeStage={setStageChangeCandidate}
         onRetryStageMove={retryCandidate}
         onVerifyStageMove={verifyCandidate}
+        onUndoStageMove={undoLatest}
         pendingCandidateIds={pendingCandidateIds}
         stageMoveFailureByCandidateId={stageMoveFailureByCandidateId}
         stageMoveVerificationByCandidateId={stageMoveVerificationByCandidateId}
         stageProjectionByCandidateId={stageProjectionByCandidateId}
+        undoPendingCandidateIds={undoStageChangeDisabledCandidateIds}
+        {...(undoState === undefined ? {} : { undoState })}
         verificationPendingCandidateIds={verificationPendingCandidateIds}
       />
       {stageChangeCandidate ? (

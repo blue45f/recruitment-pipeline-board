@@ -17,7 +17,6 @@ export function AppProviders({ children }: PropsWithChildren) {
           <Tooltip.Provider delayDuration={300}>{children}</Tooltip.Provider>
         </CandidateMovementProvider>
         <Toaster
-          closeButton
           position="bottom-center"
           richColors
           toastOptions={{ duration: 4_000 }}

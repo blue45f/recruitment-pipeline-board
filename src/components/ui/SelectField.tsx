@@ -46,6 +46,7 @@ export function SelectField({
   const generatedId = useId()
   const triggerId = id ?? `select-field-${generatedId}`
   const labelId = `${triggerId}-label`
+  const valueId = `${triggerId}-value`
   const descriptionId = description ? `${triggerId}-description` : undefined
   const errorId = error ? `${triggerId}-error` : undefined
   const describedBy = [descriptionId, errorId].filter(Boolean).join(' ')
@@ -75,7 +76,7 @@ export function SelectField({
         <Select.Trigger
           aria-describedby={describedBy || undefined}
           aria-invalid={error ? true : undefined}
-          aria-labelledby={labelId}
+          aria-labelledby={`${labelId} ${valueId}`}
           className={cn(
             'flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-[var(--color-line-strong)] bg-[var(--color-paper)] px-3.5 py-2.5 text-left text-sm text-[var(--color-ink)] shadow-[0_1px_2px_rgba(24,32,51,0.04)] transition-[border-color,box-shadow] outline-none hover:border-[var(--color-muted)] focus-visible:border-[var(--color-brand)] focus-visible:ring-3 focus-visible:ring-[var(--color-focus)] disabled:cursor-not-allowed disabled:bg-[var(--color-surface)] disabled:opacity-65 data-[placeholder]:text-[var(--color-muted)] motion-reduce:transition-none',
             error && 'border-[var(--color-danger)]',
@@ -83,7 +84,7 @@ export function SelectField({
           )}
           id={triggerId}
         >
-          <Select.Value placeholder={placeholder} />
+          <Select.Value id={valueId} placeholder={placeholder} />
           <Select.Icon asChild>
             <ChevronDown aria-hidden="true" className="size-4 shrink-0" />
           </Select.Icon>

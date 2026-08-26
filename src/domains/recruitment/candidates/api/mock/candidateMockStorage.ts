@@ -1,4 +1,6 @@
 export const CANDIDATE_MOCK_STORAGE_KEY =
+  'recruitment-pipeline-board:candidate-mutations:v3'
+export const CANDIDATE_MOCK_PREVIOUS_STORAGE_KEY =
   'recruitment-pipeline-board:candidate-mutations:v2'
 export const CANDIDATE_MOCK_LEGACY_STORAGE_KEY =
   'recruitment-pipeline-board:candidate-mutations:v1'
@@ -65,6 +67,9 @@ export function createMemoryCandidateMockStorage(
 
 export function createBrowserCandidateMockStorage(
   key = CANDIDATE_MOCK_STORAGE_KEY,
+  previousKey = key === CANDIDATE_MOCK_STORAGE_KEY
+    ? CANDIDATE_MOCK_PREVIOUS_STORAGE_KEY
+    : undefined,
   legacyKey = key === CANDIDATE_MOCK_STORAGE_KEY
     ? CANDIDATE_MOCK_LEGACY_STORAGE_KEY
     : undefined,
@@ -88,20 +93,29 @@ export function createBrowserCandidateMockStorage(
   return {
     read: () =>
       window.localStorage.getItem(key) ??
+      (previousKey === undefined
+        ? null
+        : window.localStorage.getItem(previousKey)) ??
       (legacyKey === undefined ? null : window.localStorage.getItem(legacyKey)),
     write: (value) => {
       window.localStorage.setItem(key, value)
 
-      if (legacyKey !== undefined) {
+      for (const oldKey of [previousKey, legacyKey]) {
+        if (oldKey === undefined) continue
+
         try {
-          window.localStorage.removeItem(legacyKey)
+          window.localStorage.removeItem(oldKey)
         } catch {
-          // The v2 value is already authoritative. Legacy cleanup is best effort.
+          // The v3 value is already authoritative. Old-key cleanup is best effort.
         }
       }
     },
     remove: () => {
       window.localStorage.removeItem(key)
+
+      if (previousKey !== undefined) {
+        window.localStorage.removeItem(previousKey)
+      }
 
       if (legacyKey !== undefined) {
         window.localStorage.removeItem(legacyKey)

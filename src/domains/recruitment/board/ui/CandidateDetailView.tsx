@@ -19,12 +19,14 @@ import { formatCandidateDate } from './formatCandidateDate'
 
 export type CandidateDetailViewProps = Readonly<{
   candidate: Candidate
+  isStageChangeDisabled?: boolean
   isStageChangePending?: boolean
   onChangeStage?: (candidate: Candidate) => void
 }>
 
 export function CandidateDetailView({
   candidate,
+  isStageChangeDisabled = false,
   isStageChangePending = false,
   onChangeStage,
 }: CandidateDetailViewProps) {
@@ -65,6 +67,7 @@ export function CandidateDetailView({
                   : `${candidate.name} 후보자 단계 변경`
               }
               data-stage-change-candidate-id={candidate.id}
+              disabled={isStageChangeDisabled}
               onClick={() => onChangeStage(candidate)}
               size="sm"
               variant="secondary"

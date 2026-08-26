@@ -12,6 +12,8 @@ import type {
   CandidateMoveFailure,
   CandidateMoveVerificationResolution,
   CandidateMoveVerificationRequired,
+  CandidateUndoState,
+  CandidateUndoSubmission,
 } from '../movement/CandidateMovementCoordinator'
 
 export type CandidateStageMoveFailure = CandidateMoveFailure
@@ -19,6 +21,8 @@ export type CandidateStageMoveVerificationRequired =
   CandidateMoveVerificationRequired
 export type CandidateStageMoveVerificationResolution =
   CandidateMoveVerificationResolution
+export type CandidateStageUndoState = CandidateUndoState
+export type CandidateStageUndoSubmission = CandidateUndoSubmission
 
 export function useCandidateStageMove() {
   const coordinator = useCandidateMovementCoordinator()
@@ -41,6 +45,9 @@ export function useCandidateStageMove() {
     stageMoveVerificationByCandidateId:
       snapshot.verificationRequiredByCandidateId,
     stageProjectionByCandidateId: snapshot.stageProjectionByCandidateId,
+    undoLatest: coordinator.undoLatest,
+    undoPendingCandidateIds: snapshot.undoPendingCandidateIds,
+    undoState: snapshot.undoState,
     verificationPendingCandidateIds: snapshot.verificationPendingCandidateIds,
     verifyCandidate: coordinator.verify,
   }

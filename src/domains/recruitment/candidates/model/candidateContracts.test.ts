@@ -110,6 +110,14 @@ describe('후보자 도메인 계약', () => {
       meta: {
         requestId: 'request-0001',
         clientMutationId: request.clientMutationId,
+        undoReceipt: {
+          candidateId: validCandidate.id,
+          clientMutationId: request.clientMutationId,
+          previousStage: validCandidate.currentStage,
+          currentStage: 'offer_discussion',
+          expectedRevision: 1,
+          committedRevision: 2,
+        },
       },
     } as const
 
@@ -123,21 +131,73 @@ describe('후보자 도메인 계약', () => {
     ).toBe(false)
   })
 
-  it.each(['REVISION_CONFLICT', 'IDEMPOTENCY_KEY_CONFLICT'] as const)(
-    '%s 오류 코드를 안전한 409 계약으로 검증한다',
-    (code) => {
-      const response = {
-        error: {
-          code,
-          message: '화면에 직접 노출하지 않는 서버 메시지',
-          requestId: 'request-conflict',
-          retryable: false,
-        },
-      } as const
+  it('보상 요청은 원 mutation ID와 다른 새 ID만 허용한다', () => {
+    const compensation = {
+      stage: 'interview',
+      expectedRevision: 2,
+      clientMutationId: 'mutation-undo-0001',
+      compensatesClientMutationId: 'mutation-move-0001',
+    } as const
 
-      expect(candidateApiErrorResponseSchema.parse(response)).toEqual(response)
-    },
-  )
+    expect(candidateStageUpdateRequestSchema.parse(compensation)).toEqual(
+      compensation,
+    )
+    expect(
+      candidateStageUpdateRequestSchema.safeParse({
+        ...compensation,
+        compensatesClientMutationId: compensation.clientMutationId,
+      }).success,
+    ).toBe(false)
+  })
+
+  it.each([
+    ['후보자 ID', { candidateId: 'candidate-another-0001' }],
+    ['mutation ID', { clientMutationId: 'mutation-another' }],
+    ['현재 단계', { currentStage: 'hired' as const }],
+    ['commit revision', { expectedRevision: 2, committedRevision: 3 }],
+  ])('응답과 상관관계가 다른 Undo receipt의 %s를 거부한다', (_, change) => {
+    const response = {
+      data: {
+        ...validCandidate,
+        currentStage: 'offer_discussion' as const,
+        revision: 2,
+      },
+      meta: {
+        requestId: 'request-correlated',
+        clientMutationId: 'mutation-correlated',
+        undoReceipt: {
+          candidateId: validCandidate.id,
+          clientMutationId: 'mutation-correlated',
+          previousStage: validCandidate.currentStage,
+          currentStage: 'offer_discussion' as const,
+          expectedRevision: 1,
+          committedRevision: 2,
+          ...change,
+        },
+      },
+    }
+
+    expect(candidateStageUpdateResponseSchema.safeParse(response).success).toBe(
+      false,
+    )
+  })
+
+  it.each([
+    'REVISION_CONFLICT',
+    'IDEMPOTENCY_KEY_CONFLICT',
+    'UNDO_NOT_AVAILABLE',
+  ] as const)('%s 오류 코드를 안전한 409 계약으로 검증한다', (code) => {
+    const response = {
+      error: {
+        code,
+        message: '화면에 직접 노출하지 않는 서버 메시지',
+        requestId: 'request-conflict',
+        retryable: false,
+      },
+    } as const
+
+    expect(candidateApiErrorResponseSchema.parse(response)).toEqual(response)
+  })
 
   it('알 수 없는 서버 오류 코드를 계약에서 거부한다', () => {
     expect(

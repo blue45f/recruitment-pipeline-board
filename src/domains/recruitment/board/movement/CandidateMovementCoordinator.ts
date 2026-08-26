@@ -6,6 +6,7 @@ import type {
 
 const DEFAULT_FAILURE_MESSAGE = '단계 변경을 저장하지 못했습니다.'
 const CANDIDATE_UNAVAILABLE_MESSAGE = '후보자의 최신 정보를 확인할 수 없습니다.'
+const UNDO_STALE_MESSAGE = '이후 단계가 변경되어 되돌릴 수 없습니다.'
 
 export type CandidateMoveIntent = Readonly<{
   candidateId: CandidateId
@@ -18,10 +19,28 @@ export type CandidateMoveCommand = Readonly<{
   clientMutationId: string
   expectedRevision: number
   targetStage: CandidateStage
+  compensatesClientMutationId?: string
+}>
+
+export type CandidateMoveExecutionReceipt = Readonly<{
+  candidateId: CandidateId
+  clientMutationId: string
+  committedRevision: number
+  committedStage: CandidateStage
+  previousStage: CandidateStage
+}>
+
+export type CandidateMoveExecution = Readonly<{
+  candidate: Candidate
+  undoReceipt?: CandidateMoveExecutionReceipt
 }>
 
 export type MoveExecutionErrorKind =
-  'failed' | 'idempotency-conflict' | 'revision-conflict' | 'unknown-outcome'
+  | 'failed'
+  | 'idempotency-conflict'
+  | 'revision-conflict'
+  | 'undo-unavailable'
+  | 'unknown-outcome'
 
 export type MoveExecutionErrorOptions = Readonly<{
   cause?: unknown
@@ -54,6 +73,7 @@ export type CandidateMoveSuccess = Readonly<{
   completedAt: number
   intent: CandidateMoveIntent
   status: 'success'
+  undoReceipt?: CandidateUndoReceipt
 }>
 
 export type CandidateMoveFailure = Readonly<{
@@ -74,6 +94,7 @@ export type CandidateMoveVerificationRequired = Readonly<{
   candidateName: string
   completedAt: number
   intent: CandidateMoveIntent
+  intentOrder: number
   projectedStage: CandidateStage
   safeMessage: string
   status: 'verification-required'
@@ -83,6 +104,93 @@ export type CandidateMoveResult =
   | CandidateMoveFailure
   | CandidateMoveSuccess
   | CandidateMoveVerificationRequired
+
+export type CandidateUndoReceipt = Readonly<{
+  candidateId: CandidateId
+  candidateName: string
+  completedAt: number
+  fromStage: CandidateStage
+  intentOrder: number
+  resultRevision: number
+  sourceClientMutationId: string
+  toStage: CandidateStage
+}>
+
+export type CandidateUndoAvailable = Readonly<{
+  receipt: CandidateUndoReceipt
+  status: 'available'
+}>
+
+type CandidateUndoPending = Readonly<{
+  phase: 'queued' | 'sending'
+  receipt: CandidateUndoReceipt
+  status: 'pending'
+}>
+
+export type CandidateUndoFailureState = Readonly<{
+  receipt: CandidateUndoReceipt
+  safeMessage: string
+  status: 'failure'
+}>
+
+export type CandidateUndoVerificationRequired = Readonly<{
+  attemptedCommand: CandidateMoveCommand
+  receipt: CandidateUndoReceipt
+  safeMessage: string
+  status: 'verification-required'
+}>
+
+export type CandidateUndoState =
+  | CandidateUndoAvailable
+  | CandidateUndoFailureState
+  | CandidateUndoPending
+  | CandidateUndoVerificationRequired
+
+export type CandidateUndoSuccess = Readonly<{
+  candidate: Candidate
+  candidateId: CandidateId
+  completedAt: number
+  receipt: CandidateUndoReceipt
+  status: 'undo-success'
+}>
+
+export type CandidateUndoFailure = Readonly<{
+  candidateId: CandidateId
+  completedAt: number
+  currentStage: CandidateStage
+  kind: MoveExecutionErrorKind | 'stale'
+  receipt: CandidateUndoReceipt
+  retryable: boolean
+  safeMessage: string
+  status: 'undo-failure'
+}>
+
+export type CandidateUndoVerificationResult = Readonly<{
+  candidateId: CandidateId
+  completedAt: number
+  receipt: CandidateUndoReceipt
+  safeMessage: string
+  status: 'undo-verification-required'
+}>
+
+export type CandidateUndoResult =
+  CandidateUndoFailure | CandidateUndoSuccess | CandidateUndoVerificationResult
+
+export type CandidateMovementNotification =
+  CandidateMoveResult | CandidateUndoResult
+
+export type CandidateUndoSubmission =
+  | Readonly<{
+      accepted: true
+      candidateId: CandidateId
+      completion: Promise<CandidateUndoResult>
+      disposition: 'queued' | 'started'
+    }>
+  | Readonly<{
+      accepted: false
+      candidateId?: CandidateId
+      reason: 'already-consuming' | 'candidate-busy' | 'stale' | 'unavailable'
+    }>
 
 export type CandidateMoveVerificationResolution =
   | Readonly<{
@@ -107,6 +215,8 @@ export type CandidateMovementSnapshot = Readonly<{
   lastResultByCandidateId: ReadonlyMap<CandidateId, CandidateMoveResult>
   pendingCandidateIds: ReadonlySet<CandidateId>
   stageProjectionByCandidateId: ReadonlyMap<CandidateId, CandidateStage>
+  undoPendingCandidateIds: ReadonlySet<CandidateId>
+  undoState: CandidateUndoState | undefined
   verificationPendingCandidateIds: ReadonlySet<CandidateId>
   verificationRequiredByCandidateId: ReadonlyMap<
     CandidateId,
@@ -116,9 +226,9 @@ export type CandidateMovementSnapshot = Readonly<{
 }>
 
 export type CandidateMovementAdapters = Readonly<{
-  execute: (command: CandidateMoveCommand) => Promise<Candidate>
+  execute: (command: CandidateMoveCommand) => Promise<CandidateMoveExecution>
   mergeConfirmed: (candidate: Candidate) => void
-  notify: (result: CandidateMoveResult) => void
+  notify: (result: CandidateMovementNotification) => void
   readConfirmedCandidate: (candidateId: CandidateId) => Candidate | undefined
   reconcile: (candidateId: CandidateId) => Promise<Candidate>
 }>
@@ -142,24 +252,31 @@ export type CandidateMoveSubmission =
         | 'candidate-unavailable'
         | 'duplicate-visible-target'
         | 'no-failure-to-retry'
+        | 'undo-in-progress'
     }>
 
 type ReadyLane = Readonly<{
-  intent: CandidateMoveIntent
+  intent: OrderedCandidateMoveIntent
   phase: 'ready'
 }>
 
 type SendingLane = Readonly<{
   command: CandidateMoveCommand
-  intent: CandidateMoveIntent
+  intent: OrderedCandidateMoveIntent
   phase: 'sending'
-  queuedIntent?: CandidateMoveIntent
+  queuedIntent?: OrderedCandidateMoveIntent
 }>
 
 type CandidateLane = ReadyLane | SendingLane
 
+type OrderedCandidateMoveIntent = CandidateMoveIntent &
+  Readonly<{
+    order: number
+  }>
+
 type OperationSuccess = Readonly<{
   candidate: Candidate
+  undoReceipt?: CandidateMoveExecutionReceipt
   status: 'success'
 }>
 
@@ -192,12 +309,27 @@ type VerificationReadyTask = Readonly<{
   kind: 'verification'
 }>
 
-type ReadyTask = MoveReadyTask | VerificationReadyTask
+type UndoReadyTask = Readonly<{
+  candidateId: CandidateId
+  kind: 'undo'
+  runId: string
+}>
+
+type ReadyTask = MoveReadyTask | UndoReadyTask | VerificationReadyTask
 
 type VerificationRun = Readonly<{
   attemptedMutationId: string
   promise: Promise<CandidateMoveVerificationResolution>
   resolve: (resolution: CandidateMoveVerificationResolution) => void
+}>
+
+type UndoRun = Readonly<{
+  command: CandidateMoveCommand
+  isVerification: boolean
+  promise: Promise<CandidateUndoResult>
+  receipt: CandidateUndoReceipt
+  resolve: (resolution: CandidateUndoResult) => void
+  runId: string
 }>
 
 function defaultCreateId() {
@@ -224,15 +356,42 @@ function cloneIntent(intent: CandidateMoveIntent): CandidateMoveIntent {
   }
 }
 
+function publicIntent(intent: OrderedCandidateMoveIntent): CandidateMoveIntent {
+  return cloneIntent(intent)
+}
+
 function createEmptySnapshot(): CandidateMovementSnapshot {
   return {
     failureByCandidateId: new Map(),
     lastResultByCandidateId: new Map(),
     pendingCandidateIds: new Set(),
     stageProjectionByCandidateId: new Map(),
+    undoPendingCandidateIds: new Set(),
+    undoState: undefined,
     verificationPendingCandidateIds: new Set(),
     verificationRequiredByCandidateId: new Map(),
     version: 0,
+  }
+}
+
+function createUndoRun(
+  command: CandidateMoveCommand,
+  receipt: CandidateUndoReceipt,
+  runId: string,
+  isVerification: boolean,
+): UndoRun {
+  let resolveRun: (resolution: CandidateUndoResult) => void = () => undefined
+  const promise = new Promise<CandidateUndoResult>((resolve) => {
+    resolveRun = resolve
+  })
+
+  return {
+    command,
+    isVerification,
+    promise,
+    receipt,
+    resolve: resolveRun,
+    runId,
   }
 }
 
@@ -312,6 +471,7 @@ export class CandidateMovementCoordinator {
     CandidateMoveResult
   >()
   private readonly listeners = new Set<() => void>()
+  private latestForwardIntentOrder = 0
   private readonly maxConcurrency: number
   private readonly now: () => number
   private readonly readyQueue: ReadyTask[] = []
@@ -328,6 +488,10 @@ export class CandidateMovementCoordinator {
     CandidateId,
     VerificationRun
   >()
+  private deferredUndoReceipt: CandidateUndoReceipt | undefined
+  private undoRun: UndoRun | undefined
+  private undoRunSequence = 0
+  private undoState: CandidateUndoState | undefined
 
   constructor(
     adapters: CandidateMovementAdapters,
@@ -358,16 +522,27 @@ export class CandidateMovementCoordinator {
   }
 
   submit(intent: CandidateMoveIntent): CandidateMoveSubmission {
-    const nextIntent = cloneIntent(intent)
-    const existingLane = this.lanes.get(nextIntent.candidateId)
+    const candidateId = intent.candidateId
+
+    if (this.isUndoBlockingCandidate(candidateId)) {
+      return {
+        accepted: false,
+        candidateId,
+        reason: 'undo-in-progress',
+      }
+    }
+
+    const existingLane = this.lanes.get(candidateId)
 
     if (existingLane?.phase === 'ready') {
-      if (existingLane.intent.targetStage === nextIntent.targetStage) {
-        return this.duplicateSubmission(nextIntent.candidateId)
+      if (existingLane.intent.targetStage === intent.targetStage) {
+        return this.duplicateSubmission(candidateId)
       }
 
-      this.clearTerminalState(nextIntent.candidateId)
-      this.lanes.set(nextIntent.candidateId, {
+      const nextIntent = this.createOrderedForwardIntent(intent)
+
+      this.clearTerminalState(candidateId)
+      this.lanes.set(candidateId, {
         intent: nextIntent,
         phase: 'ready',
       })
@@ -376,7 +551,7 @@ export class CandidateMovementCoordinator {
 
       return {
         accepted: true,
-        candidateId: nextIntent.candidateId,
+        candidateId,
         disposition: 'replaced-ready',
       }
     }
@@ -386,12 +561,14 @@ export class CandidateMovementCoordinator {
         existingLane.queuedIntent?.targetStage ??
         existingLane.intent.targetStage
 
-      if (visibleTarget === nextIntent.targetStage) {
-        return this.duplicateSubmission(nextIntent.candidateId)
+      if (visibleTarget === intent.targetStage) {
+        return this.duplicateSubmission(candidateId)
       }
 
-      this.clearTerminalState(nextIntent.candidateId)
-      this.lanes.set(nextIntent.candidateId, {
+      const nextIntent = this.createOrderedForwardIntent(intent)
+
+      this.clearTerminalState(candidateId)
+      this.lanes.set(candidateId, {
         ...existingLane,
         queuedIntent: nextIntent,
       })
@@ -399,52 +576,48 @@ export class CandidateMovementCoordinator {
 
       return {
         accepted: true,
-        candidateId: nextIntent.candidateId,
+        candidateId,
         disposition: 'queued',
       }
     }
 
-    const confirmedCandidate = this.readConfirmedCandidate(
-      nextIntent.candidateId,
-    )
+    const confirmedCandidate = this.readConfirmedCandidate(candidateId)
 
     if (confirmedCandidate === undefined) {
       return {
         accepted: false,
-        candidateId: nextIntent.candidateId,
+        candidateId,
         reason: 'candidate-unavailable',
       }
     }
 
-    const stickyProjection = this.stickyProjectionByCandidateId.get(
-      nextIntent.candidateId,
-    )
+    const stickyProjection = this.stickyProjectionByCandidateId.get(candidateId)
     const visibleTarget = stickyProjection ?? confirmedCandidate.currentStage
 
-    if (visibleTarget === nextIntent.targetStage) {
-      return this.duplicateSubmission(nextIntent.candidateId)
+    if (visibleTarget === intent.targetStage) {
+      return this.duplicateSubmission(candidateId)
     }
 
-    this.clearTerminalState(nextIntent.candidateId)
-    this.lanes.set(nextIntent.candidateId, {
+    const nextIntent = this.createOrderedForwardIntent(intent)
+
+    this.clearTerminalState(candidateId)
+    this.lanes.set(candidateId, {
       intent: nextIntent,
       phase: 'ready',
     })
     this.readyQueue.push({
-      candidateId: nextIntent.candidateId,
+      candidateId,
       kind: 'move',
     })
     this.publish()
     this.pump()
 
     const disposition =
-      this.lanes.get(nextIntent.candidateId)?.phase === 'sending'
-        ? 'started'
-        : 'queued'
+      this.lanes.get(candidateId)?.phase === 'sending' ? 'started' : 'queued'
 
     return {
       accepted: true,
-      candidateId: nextIntent.candidateId,
+      candidateId,
       disposition,
     }
   }
@@ -521,6 +694,94 @@ export class CandidateMovementCoordinator {
     return run.promise
   }
 
+  readonly undoLatest = (): CandidateUndoSubmission => {
+    const state = this.undoState
+
+    if (state === undefined) {
+      return { accepted: false, reason: 'unavailable' }
+    }
+
+    const { candidateId } = state.receipt
+
+    if (state.status === 'pending') {
+      return {
+        accepted: false,
+        candidateId,
+        reason: 'already-consuming',
+      }
+    }
+
+    if (
+      this.lanes.has(candidateId) ||
+      this.activeNetworkCandidateIds.has(candidateId)
+    ) {
+      return {
+        accepted: false,
+        candidateId,
+        reason: 'candidate-busy',
+      }
+    }
+
+    const confirmedCandidate = this.readConfirmedCandidate(candidateId)
+
+    if (
+      state.status !== 'verification-required' &&
+      !this.receiptMatchesCandidate(state.receipt, confirmedCandidate)
+    ) {
+      this.undoState = undefined
+      const staleResult = this.createUndoFailure(
+        state.receipt,
+        'stale',
+        UNDO_STALE_MESSAGE,
+        confirmedCandidate,
+        false,
+      )
+
+      this.publishAndNotify(staleResult)
+
+      return { accepted: false, candidateId, reason: 'stale' }
+    }
+
+    const command =
+      state.status === 'verification-required'
+        ? state.attemptedCommand
+        : {
+            candidateId,
+            clientMutationId: this.createId(),
+            compensatesClientMutationId: state.receipt.sourceClientMutationId,
+            expectedRevision: state.receipt.resultRevision,
+            targetStage: state.receipt.fromStage,
+          }
+    const runId = `${command.clientMutationId}:${++this.undoRunSequence}`
+    const run = createUndoRun(
+      command,
+      state.receipt,
+      runId,
+      state.status === 'verification-required',
+    )
+
+    this.undoRun = run
+    this.undoState = {
+      phase: 'queued',
+      receipt: state.receipt,
+      status: 'pending',
+    }
+    this.readyQueue.push({ candidateId, kind: 'undo', runId })
+    this.publish()
+    this.pump()
+
+    return {
+      accepted: true,
+      candidateId,
+      completion: run.promise,
+      disposition:
+        this.undoState?.status === 'pending' &&
+        this.undoState.phase === 'sending'
+          ? 'started'
+          : 'queued',
+    }
+  }
+
   private acceptConfirmedCandidate(candidate: Candidate) {
     const current = this.knownConfirmedByCandidateId.get(candidate.id)
 
@@ -538,8 +799,10 @@ export class CandidateMovementCoordinator {
     command: CandidateMoveCommand,
   ): Promise<OperationOutcome> {
     try {
+      const execution = await this.adapters.execute(command)
+
       return {
-        candidate: await this.adapters.execute(command),
+        ...execution,
         status: 'success',
       }
     } catch (firstError) {
@@ -550,8 +813,10 @@ export class CandidateMovementCoordinator {
       }
 
       try {
+        const replayedExecution = await this.adapters.execute(command)
+
         return {
-          candidate: await this.adapters.execute(command),
+          ...replayedExecution,
           status: 'success',
         }
       } catch (replayError) {
@@ -587,6 +852,33 @@ export class CandidateMovementCoordinator {
         }
       }
     }
+  }
+
+  private createOrderedForwardIntent(
+    intent: CandidateMoveIntent,
+  ): OrderedCandidateMoveIntent {
+    this.latestForwardIntentOrder += 1
+    this.deferredUndoReceipt = undefined
+
+    if (
+      this.undoState?.status === 'available' ||
+      this.undoState?.status === 'failure'
+    ) {
+      this.undoState = undefined
+    }
+
+    return {
+      ...cloneIntent(intent),
+      order: this.latestForwardIntentOrder,
+    }
+  }
+
+  private isUndoBlockingCandidate(candidateId: CandidateId) {
+    return (
+      (this.undoState?.status === 'pending' ||
+        this.undoState?.status === 'verification-required') &&
+      this.undoState.receipt.candidateId === candidateId
+    )
   }
 
   private clearTerminalState(candidateId: CandidateId) {
@@ -636,13 +928,12 @@ export class CandidateMovementCoordinator {
     this.lanes.delete(candidateId)
 
     if (outcome.status === 'success') {
-      const result: CandidateMoveSuccess = {
-        candidate: confirmedCandidate ?? outcome.candidate,
-        candidateId,
-        completedAt: this.now(),
-        intent: lane.intent,
-        status: 'success',
-      }
+      const result = this.createMoveSuccess(
+        lane.intent,
+        attemptedCommand,
+        confirmedCandidate ?? outcome.candidate,
+        outcome.undoReceipt,
+      )
 
       this.lastResultByCandidateId.set(candidateId, result)
       this.publishAndNotify(result)
@@ -654,11 +945,12 @@ export class CandidateMovementCoordinator {
       const projectedIntent = lane.queuedIntent ?? lane.intent
       const result: CandidateMoveVerificationRequired = {
         attemptedCommand,
-        attemptedIntent: lane.intent,
+        attemptedIntent: publicIntent(lane.intent),
         candidateId,
         candidateName: projectedIntent.candidateName,
         completedAt: this.now(),
-        intent: projectedIntent,
+        intent: publicIntent(projectedIntent),
+        intentOrder: projectedIntent.order,
         projectedStage: projectedIntent.targetStage,
         safeMessage: outcome.error.safeMessage,
         status: 'verification-required',
@@ -691,12 +983,66 @@ export class CandidateMovementCoordinator {
       candidate,
       candidateId: intent.candidateId,
       completedAt: this.now(),
-      intent,
+      intent: cloneIntent(intent),
       status: 'success',
     }
 
     this.lastResultByCandidateId.set(intent.candidateId, result)
     this.publishAndNotify(result)
+  }
+
+  private createMoveSuccess(
+    intent: OrderedCandidateMoveIntent,
+    command: CandidateMoveCommand,
+    candidate: Candidate,
+    executionReceipt?: CandidateMoveExecutionReceipt,
+  ): CandidateMoveSuccess {
+    const completedAt = this.now()
+    const canCreateUndoReceipt =
+      executionReceipt !== undefined &&
+      command.compensatesClientMutationId === undefined &&
+      intent.order === this.latestForwardIntentOrder &&
+      executionReceipt.candidateId === candidate.id &&
+      executionReceipt.candidateId === command.candidateId &&
+      executionReceipt.clientMutationId === command.clientMutationId &&
+      executionReceipt.committedStage === candidate.currentStage &&
+      executionReceipt.committedStage === command.targetStage &&
+      executionReceipt.committedRevision === candidate.revision &&
+      executionReceipt.committedRevision === command.expectedRevision + 1 &&
+      executionReceipt.previousStage !== executionReceipt.committedStage
+    const undoReceipt = canCreateUndoReceipt
+      ? {
+          candidateId: candidate.id,
+          candidateName: intent.candidateName,
+          completedAt,
+          fromStage: executionReceipt.previousStage,
+          intentOrder: intent.order,
+          resultRevision: executionReceipt.committedRevision,
+          sourceClientMutationId: executionReceipt.clientMutationId,
+          toStage: executionReceipt.committedStage,
+        }
+      : undefined
+
+    if (undoReceipt !== undefined) {
+      if (
+        this.undoState?.status === 'pending' ||
+        this.undoState?.status === 'verification-required'
+      ) {
+        this.deferredUndoReceipt = undoReceipt
+      } else {
+        this.deferredUndoReceipt = undefined
+        this.undoState = { receipt: undoReceipt, status: 'available' }
+      }
+    }
+
+    return {
+      candidate,
+      candidateId: intent.candidateId,
+      completedAt,
+      intent: publicIntent(intent),
+      status: 'success',
+      ...(undoReceipt === undefined ? {} : { undoReceipt }),
+    }
   }
 
   private createCommand(
@@ -720,12 +1066,42 @@ export class CandidateMovementCoordinator {
       candidateId: intent.candidateId,
       candidateName: intent.candidateName,
       completedAt: this.now(),
-      intent,
+      intent: cloneIntent(intent),
       kind: error.kind,
       safeMessage: error.safeMessage,
       status: 'failure',
       targetStage: intent.targetStage,
     }
+  }
+
+  private createUndoFailure(
+    receipt: CandidateUndoReceipt,
+    kind: MoveExecutionErrorKind | 'stale',
+    safeMessage: string,
+    candidate: Candidate | undefined,
+    retryable: boolean,
+  ): CandidateUndoFailure {
+    return {
+      candidateId: receipt.candidateId,
+      completedAt: this.now(),
+      currentStage: candidate?.currentStage ?? receipt.toStage,
+      kind,
+      receipt,
+      retryable,
+      safeMessage,
+      status: 'undo-failure',
+    }
+  }
+
+  private receiptMatchesCandidate(
+    receipt: CandidateUndoReceipt,
+    candidate: Candidate | undefined,
+  ) {
+    return (
+      candidate?.id === receipt.candidateId &&
+      candidate.currentStage === receipt.toStage &&
+      candidate.revision === receipt.resultRevision
+    )
   }
 
   private duplicateSubmission(
@@ -738,9 +1114,28 @@ export class CandidateMovementCoordinator {
     }
   }
 
+  private takeDeferredUndoState(): CandidateUndoAvailable | undefined {
+    const receipt = this.deferredUndoReceipt
+
+    this.deferredUndoReceipt = undefined
+
+    if (
+      receipt?.intentOrder !== this.latestForwardIntentOrder ||
+      !this.receiptMatchesCandidate(
+        receipt,
+        this.readConfirmedCandidate(receipt.candidateId),
+      )
+    ) {
+      return undefined
+    }
+
+    return { receipt, status: 'available' }
+  }
+
   private publish() {
     const previousSnapshot = this.snapshot
     const pendingCandidateIds = new Set(this.lanes.keys())
+    const undoPendingCandidateIds = new Set<CandidateId>()
     const stageProjectionByCandidateId = new Map(
       this.stickyProjectionByCandidateId,
     )
@@ -752,6 +1147,21 @@ export class CandidateMovementCoordinator {
           ? lane.queuedIntent.targetStage
           : lane.intent.targetStage,
       )
+    }
+
+    if (
+      this.undoState?.status === 'pending' ||
+      this.undoState?.status === 'verification-required'
+    ) {
+      stageProjectionByCandidateId.set(
+        this.undoState.receipt.candidateId,
+        this.undoState.receipt.fromStage,
+      )
+    }
+
+    if (this.undoState?.status === 'pending') {
+      pendingCandidateIds.add(this.undoState.receipt.candidateId)
+      undoPendingCandidateIds.add(this.undoState.receipt.candidateId)
     }
 
     this.snapshot = {
@@ -771,6 +1181,11 @@ export class CandidateMovementCoordinator {
         stageProjectionByCandidateId,
         previousSnapshot.stageProjectionByCandidateId,
       ),
+      undoPendingCandidateIds: reuseSetIfEqual(
+        undoPendingCandidateIds,
+        previousSnapshot.undoPendingCandidateIds,
+      ),
+      undoState: this.undoState,
       verificationPendingCandidateIds: reuseSetIfEqual(
         new Set(this.verificationRunByCandidateId.keys()),
         previousSnapshot.verificationPendingCandidateIds,
@@ -787,7 +1202,7 @@ export class CandidateMovementCoordinator {
     }
   }
 
-  private publishAndNotify(result: CandidateMoveResult) {
+  private publishAndNotify(result: CandidateMovementNotification) {
     this.publish()
 
     try {
@@ -838,8 +1253,59 @@ export class CandidateMovementCoordinator {
         continue
       }
 
+      if (task.kind === 'undo') {
+        this.startUndoTask(task)
+        continue
+      }
+
       this.startMoveTask(task)
     }
+  }
+
+  private startUndoTask(task: UndoReadyTask) {
+    const run = this.undoRun
+
+    if (
+      run?.runId !== task.runId ||
+      this.undoState?.status !== 'pending' ||
+      this.undoState.receipt.sourceClientMutationId !==
+        run.receipt.sourceClientMutationId
+    ) {
+      return
+    }
+
+    const candidate = this.readConfirmedCandidate(task.candidateId)
+
+    if (
+      !run.isVerification &&
+      !this.receiptMatchesCandidate(run.receipt, candidate)
+    ) {
+      this.undoRun = undefined
+      this.undoState = this.takeDeferredUndoState()
+      const result = this.createUndoFailure(
+        run.receipt,
+        'stale',
+        UNDO_STALE_MESSAGE,
+        candidate,
+        false,
+      )
+
+      run.resolve(result)
+      this.publishAndNotify(result)
+      return
+    }
+
+    this.undoState = {
+      phase: 'sending',
+      receipt: run.receipt,
+      status: 'pending',
+    }
+    this.activeNetworkCandidateIds.add(task.candidateId)
+    this.activeRequestCount += 1
+    this.publish()
+    void this.runUndoOperation(run.command).then((outcome) => {
+      this.completeUndoOperation(run, outcome)
+    })
   }
 
   private startVerificationTask(task: VerificationReadyTask) {
@@ -866,6 +1332,84 @@ export class CandidateMovementCoordinator {
     void this.resolveVerification(verification).then((resolution) => {
       this.completeVerificationRun(candidateId, run, resolution)
     })
+  }
+
+  private completeUndoOperation(run: UndoRun, outcome: OperationOutcome) {
+    const { candidateId } = run.receipt
+
+    this.activeNetworkCandidateIds.delete(candidateId)
+    this.activeRequestCount -= 1
+
+    if (this.undoRun?.runId !== run.runId) {
+      this.pump()
+      return
+    }
+
+    this.undoRun = undefined
+
+    if (outcome.status === 'success') {
+      const candidate = this.acceptConfirmedCandidate(outcome.candidate)
+      const result: CandidateUndoSuccess = {
+        candidate,
+        candidateId,
+        completedAt: this.now(),
+        receipt: run.receipt,
+        status: 'undo-success',
+      }
+
+      this.undoState = this.takeDeferredUndoState()
+      run.resolve(result)
+      this.publishAndNotify(result)
+      this.pump()
+      return
+    }
+
+    if (outcome.status === 'verification-required') {
+      const result: CandidateUndoVerificationResult = {
+        candidateId,
+        completedAt: this.now(),
+        receipt: run.receipt,
+        safeMessage: outcome.error.safeMessage,
+        status: 'undo-verification-required',
+      }
+
+      this.undoState = {
+        attemptedCommand: run.command,
+        receipt: run.receipt,
+        safeMessage: outcome.error.safeMessage,
+        status: 'verification-required',
+      }
+      run.resolve(result)
+      this.publishAndNotify(result)
+      this.pump()
+      return
+    }
+
+    const currentCandidate = this.readConfirmedCandidate(candidateId)
+    const wasSuperseded =
+      run.receipt.intentOrder < this.latestForwardIntentOrder
+    const retryable =
+      !wasSuperseded &&
+      outcome.error.kind === 'failed' &&
+      this.receiptMatchesCandidate(run.receipt, currentCandidate)
+    const result = this.createUndoFailure(
+      run.receipt,
+      outcome.error.kind,
+      outcome.error.safeMessage,
+      currentCandidate,
+      retryable,
+    )
+
+    this.undoState = retryable
+      ? {
+          receipt: run.receipt,
+          safeMessage: outcome.error.safeMessage,
+          status: 'failure',
+        }
+      : this.takeDeferredUndoState()
+    run.resolve(result)
+    this.publishAndNotify(result)
+    this.pump()
   }
 
   private startMoveTask(task: MoveReadyTask) {
@@ -1017,6 +1561,29 @@ export class CandidateMovementCoordinator {
         ?.attemptedCommand.clientMutationId ===
       verification.attemptedCommand.clientMutationId
     )
+  }
+
+  private async runUndoOperation(
+    command: CandidateMoveCommand,
+  ): Promise<OperationOutcome> {
+    const outcome = await this.attemptCommand(command)
+    const shouldReconcileFailedUndo =
+      outcome.status === 'failure' &&
+      (outcome.error.kind === 'revision-conflict' ||
+        outcome.error.kind === 'undo-unavailable')
+
+    if (shouldReconcileFailedUndo) {
+      try {
+        this.acceptConfirmedCandidate(
+          await this.adapters.reconcile(command.candidateId),
+        )
+      } catch {
+        // The fixed-revision compensation remains failed. A best-effort read is
+        // only used to show the newest confirmed stage and never to rebase Undo.
+      }
+    }
+
+    return outcome
   }
 
   private async runOperation(
