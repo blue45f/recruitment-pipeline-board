@@ -171,3 +171,24 @@
 
 - SonarCloud 요약만 보고 추측하지 않고 GitHub check-run annotation API에서 6건의 파일과 줄을 확인했다. 네 건은 props 불변성, 한 건은 `Error` 식별자, 한 건은 인라인 요소 뒤 공백 규칙이었다.
 - 모두 동작을 바꾸지 않는 정적 분석 보완으로 한정했다. 기존 디자인 시스템 커밋을 고치지 않고 별도 커밋으로 남겨 원격 재분석 결과를 확인하기로 했다.
+
+## [candidate-query] 후보자 조회 쿼리와 재시도 정책
+
+### 프롬프트 1
+
+> 후보자 목록과 상세 조회를 TanStack Query의 공통 query option으로 만들어줘. 목록은 데이터 크기, 상세는 후보자 ID가 query key에 포함돼 서로 다른 응답이 섞이지 않아야 하고 API 호출에는 Query가 전달한 AbortSignal을 연결해줘. 초기 보드에 필요한 요청은 후보자 목록 하나뿐이므로 단계별 요청으로 나누지 말고, 실제로 독립 조회가 늘어날 때만 병렬 Suspense query를 검토해줘.
+
+### 프롬프트 2
+
+> 전역 Query 재시도는 구조가 검증된 API 오류 중 실제로 재시도 가능한 조회만 한 번 허용해줘. 스키마 오류, 404, 취소 요청, 일반 Error와 형태만 비슷한 객체는 재시도하지 않게 하고 정책을 단위 테스트로 고정해줘.
+
+### AI 출력 요지
+
+- 목록·상세 query key factory와 option factory를 후보자 도메인에 두고 Ky API에 Query의 AbortSignal을 전달했다.
+- `ApiError`의 이름만 보지 않고 오류 메타데이터 전체를 확인해 retryable 조회만 한 번 재시도하도록 QueryClient 정책을 좁혔다.
+
+### 리뷰 / 검증
+
+- 초기 화면에 필요한 독립 요청은 후보자 목록 하나뿐이라 `useSuspenseQueries`를 먼저 도입하는 제안은 기각했다. 다섯 단계가 같은 원본을 사용하므로 목록 한 번을 받아 화면에서 분류하는 편이 요청 수와 실패 지점을 줄인다.
+- 오류 이름만 `ApiError`인 일반 객체까지 재시도하면 임의 오류를 신뢰하게 된다. `kind`, `retryable`, `safeMessage`, `status` 구조를 함께 확인하도록 보완했다.
+- 목록 크기와 후보자 ID가 query key에 반영되는지, AbortSignal이 API로 이어지는지, retryable 503은 한 번만 재시도하고 스키마 오류·404·AbortError·일반 Error는 재시도하지 않는지 전용 Vitest 9개로 확인했다.
