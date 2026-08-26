@@ -5,7 +5,7 @@ import type { ReactElement, ReactNode } from 'react'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/classNames'
 
-export type ModalProps = {
+export type ModalProps = Readonly<{
   children: ReactNode
   className?: string
   closeLabel?: string
@@ -16,7 +16,7 @@ export type ModalProps = {
   open?: boolean
   title: ReactNode
   trigger?: ReactElement
-}
+}>
 
 export function Modal({
   children,

@@ -10,7 +10,7 @@ type SelectOption = Readonly<{
   value: string
 }>
 
-export type SelectFieldProps = {
+export type SelectFieldProps = Readonly<{
   className?: string
   defaultValue?: string
   description?: ReactNode
@@ -25,7 +25,7 @@ export type SelectFieldProps = {
   required?: boolean
   triggerClassName?: string
   value?: string
-}
+}>
 
 export function SelectField({
   className,

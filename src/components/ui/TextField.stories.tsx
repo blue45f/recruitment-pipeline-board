@@ -34,7 +34,7 @@ export const WithDescription: Story = {
   },
 }
 
-export const Error: Story = {
+export const WithError: Story = {
   args: {
     defaultValue: '123',
     error: '이름에는 문자를 입력해 주세요.',

@@ -5,7 +5,7 @@ import { cn } from '@/lib/classNames'
 
 type TooltipContentProps = ComponentProps<typeof RadixTooltip.Content>
 
-export type TooltipProps = {
+export type TooltipProps = Readonly<{
   align?: TooltipContentProps['align']
   children: ReactElement
   className?: string
@@ -13,7 +13,7 @@ export type TooltipProps = {
   delayDuration?: number
   side?: TooltipContentProps['side']
   sideOffset?: number
-}
+}>
 
 export function Tooltip({
   align = 'center',

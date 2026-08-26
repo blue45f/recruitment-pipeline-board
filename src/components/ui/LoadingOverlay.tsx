@@ -3,13 +3,13 @@ import type { ReactNode } from 'react'
 
 import { cn } from '@/lib/classNames'
 
-export type LoadingOverlayProps = {
+export type LoadingOverlayProps = Readonly<{
   children?: ReactNode
   className?: string
   containerClassName?: string
   label?: string
   visible?: boolean
-}
+}>
 
 export function LoadingOverlay({
   children,

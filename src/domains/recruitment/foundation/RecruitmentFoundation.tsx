@@ -45,7 +45,7 @@ export function RecruitmentFoundation() {
 
           <span className="inline-flex min-h-8 items-center gap-2 border border-[var(--color-line)] bg-[var(--color-fog)] px-3 text-xs font-semibold text-[var(--color-muted)]">
             <span className="size-1.5 bg-[var(--color-success)]" />
-            SYSTEM READY
+            <span>SYSTEM READY</span>
           </span>
         </header>
 
