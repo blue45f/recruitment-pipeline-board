@@ -109,7 +109,7 @@ describe('CandidateBoardView', () => {
     expect(within(card).getByText(/현재 단계:/)).toBeInTheDocument()
 
     const cardButton = within(card).getByRole('button', {
-      name: `${firstCandidate.name} 후보자, ${CANDIDATE_ROLE_LABELS[firstCandidate.role]}, 현재 단계 ${CANDIDATE_STAGE_LABELS[firstCandidate.currentStage]}, 지원일 ${formatCandidateCompactDate(firstCandidate.appliedAt)}, 상세 보기`,
+      name: `${firstCandidate.name} ${CANDIDATE_ROLE_LABELS[firstCandidate.role]} 현재 단계: ${CANDIDATE_STAGE_LABELS[firstCandidate.currentStage]} 지원일 ${formatCandidateCompactDate(firstCandidate.appliedAt)} 후보자 상세 보기`,
     })
 
     expect(cardButton).toHaveAttribute('aria-haspopup', 'dialog')
@@ -204,19 +204,19 @@ describe('CandidateBoardView', () => {
     expect(renderedItems.every((item) => item.ariaSetSize === '200')).toBe(true)
 
     const firstCandidateButton = screen.getByRole('button', {
-      name: new RegExp(`^${firstCandidate.name} 후보자,`),
+      name: new RegExp(`^${firstCandidate.name} .*후보자 상세 보기$`),
     })
 
     firstCandidateButton.focus()
     await user.keyboard('{End}')
 
     const lastCandidateButton = await screen.findByRole('button', {
-      name: new RegExp(`^${lastCandidate.name} 후보자,`),
+      name: new RegExp(`^${lastCandidate.name} .*후보자 상세 보기$`),
     })
     const lastCandidateItem = screen.getAllByRole('listitem').find(
       (item) =>
         within(item).queryByRole('button', {
-          name: new RegExp(`^${lastCandidate.name} 후보자,`),
+          name: new RegExp(`^${lastCandidate.name} .*후보자 상세 보기$`),
         }) === lastCandidateButton,
     )
 
@@ -332,7 +332,7 @@ describe('CandidateBoardView', () => {
       name: '서류검토 후보자 40명',
     })
     const detailButton = within(list).getByRole('button', {
-      name: new RegExp(`^${firstCandidate.name} 후보자,`),
+      name: new RegExp(`^${firstCandidate.name} .*후보자 상세 보기$`),
     })
     const stageChangeButton = within(list).getByRole('button', {
       name: `${firstCandidate.name} 후보자 저장 중 · 변경`,
@@ -389,7 +389,7 @@ describe('CandidateBoardView', () => {
       name: '서류검토 후보자 40명',
     })
     const detailButton = within(list).getByRole('button', {
-      name: new RegExp(`^${candidate.name} 후보자,`),
+      name: new RegExp(`^${candidate.name} .*후보자 상세 보기$`),
     })
     const stageChangeButton = within(list).getByRole('button', {
       name: `${candidate.name} 후보자 드래그 · 단계 변경`,
@@ -653,7 +653,7 @@ describe('CandidateBoardView', () => {
 
     const cardButton = screen
       .getAllByRole('button', {
-        name: new RegExp(`^${firstCandidate.name} 후보자,`),
+        name: new RegExp(`^${firstCandidate.name} .*후보자 상세 보기$`),
       })
       .find(
         (button) =>

@@ -157,7 +157,7 @@ function expectCandidateInStage(candidate: Candidate, stage: CandidateStage) {
   expect(
     within(stageSection).getByRole('button', {
       hidden: true,
-      name: new RegExp(`^${candidate.name} 후보자,`),
+      name: new RegExp(`^${candidate.name} .*후보자 상세 보기$`),
     }),
   ).toBeInTheDocument()
 }
@@ -207,7 +207,7 @@ describe('RecruitmentBoard candidate stage move', () => {
 
     const { queryClient, unmount } = renderBoard()
     const detailButton = await screen.findByRole('button', {
-      name: new RegExp(`^${candidate.name} 후보자,`),
+      name: new RegExp(`^${candidate.name} .*후보자 상세 보기$`),
     })
 
     await user.click(detailButton)
@@ -256,7 +256,7 @@ describe('RecruitmentBoard candidate stage move', () => {
     expect(
       within(getStageSection(candidate.currentStage)).queryByRole('button', {
         hidden: true,
-        name: new RegExp(`^${candidate.name} 후보자,`),
+        name: new RegExp(`^${candidate.name} .*후보자 상세 보기$`),
       }),
     ).not.toBeInTheDocument()
     expect(repository.getById(candidate.id)).toEqual(candidate)
@@ -300,7 +300,7 @@ describe('RecruitmentBoard candidate stage move', () => {
     expect(
       within(getStageSection(candidate.currentStage)).queryByRole('button', {
         hidden: true,
-        name: new RegExp(`^${candidate.name} 후보자,`),
+        name: new RegExp(`^${candidate.name} .*후보자 상세 보기$`),
       }),
     ).not.toBeInTheDocument()
 
@@ -316,7 +316,7 @@ describe('RecruitmentBoard candidate stage move', () => {
 
     await user.click(
       within(getStageSection(targetStage)).getByRole('button', {
-        name: new RegExp(`^${candidate.name} 후보자,`),
+        name: new RegExp(`^${candidate.name} .*후보자 상세 보기$`),
       }),
     )
 
@@ -419,7 +419,7 @@ describe('RecruitmentBoard candidate stage move', () => {
     expect(
       within(getStageSection(targetStage)).queryByRole('button', {
         hidden: true,
-        name: new RegExp(`^${candidate.name} 후보자,`),
+        name: new RegExp(`^${candidate.name} .*후보자 상세 보기$`),
       }),
     ).not.toBeInTheDocument()
     await waitFor(() => {
@@ -666,7 +666,7 @@ describe('RecruitmentBoard candidate stage move', () => {
     expect(
       within(getStageSection(firstTargetStage)).queryByRole('button', {
         hidden: true,
-        name: new RegExp(`^${candidate.name} 후보자,`),
+        name: new RegExp(`^${candidate.name} .*후보자 상세 보기$`),
       }),
     ).not.toBeInTheDocument()
     expect(patchBodies).toHaveLength(1)
@@ -774,7 +774,7 @@ describe('RecruitmentBoard candidate stage move', () => {
 
     await user.click(
       await screen.findByRole('button', {
-        name: new RegExp(`^${candidate.name} 후보자,`),
+        name: new RegExp(`^${candidate.name} .*후보자 상세 보기$`),
       }),
     )
 

@@ -1,7 +1,9 @@
 import { StrictMode, type ComponentType } from 'react'
+import { flushSync } from 'react-dom'
 import { createRoot, type Root } from 'react-dom/client'
 
 import { BootErrorPage } from '@/app/BootErrorPage'
+import { BootLoadingPage } from '@/app/BootLoadingPage'
 import { enableMocking } from '@/mocks/enableMocking'
 
 interface AppModule {
@@ -23,6 +25,14 @@ export async function bootstrap(
   }: BootstrapDependencies = {},
 ): Promise<Root> {
   const root = createRoot(rootElement)
+
+  flushSync(() => {
+    root.render(
+      <StrictMode>
+        <BootLoadingPage />
+      </StrictMode>,
+    )
+  })
 
   try {
     const [{ App }] = await Promise.all([loadAppModule(), startMocking()])

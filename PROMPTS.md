@@ -714,3 +714,88 @@
 - 가상 목록 테스트에서 AutoScroller를 끄자는 낮은 우선순위 의견은 반영하지 않았다. 테스트에서만 실제 plugin을 제거하면 사용자가 겪는 구성과 달라지고, 현재 포인터는 가장자리에서 시작하지 않으며 취소 뒤 source 제거까지 반복 실행에서 안정적으로 통과했기 때문이다. 내부 함수 41개에 일괄 docstring을 추가하라는 일반 경고도 기존 문서화 방식과 코드 밀도를 고려해 적용하지 않았다.
 - Chrome 151 production bundle에서 단계 이동 13개와 가상 목록 5개가 모두 통과했다. 터치 경계 시나리오는 핸들의 계산된 `touch-action`이 `pan-y`인지도 함께 확인한다. 로컬 시각 시나리오 5개도 overlay 위치 안정화 검사를 포함해 모두 통과했다.
 - 최종 `pnpm check`에서 format, ESLint, Secretlint, Knip, 애플리케이션과 Cypress 타입 검사, production build, Vitest 40개 파일의 282개 테스트와 Storybook build가 모두 통과했다. 새 커밋의 원격 Quality, SonarCloud, Linux 시각 비교가 다시 통과하기 전에는 병합하지 않는다.
+
+## [performance-a11y] 초기 표시와 카드 접근성 보완
+
+### 프롬프트 1
+
+> 레이아웃시프트나 fcp, lcp 같은 성능적인 부분도 고려해서 작업해줘
+
+### 프롬프트 2
+
+> useSuspenseQueries로 request waterfall 현상 발생하지 않도록 유의해주고 동시 api호출하는 경우 최대한 렌더링 멈추지 않게 최적화 잘해주고 Suspense기능도 잘 활용해주고 에러바운더리도 잘 설계해줘
+
+### 프롬프트 3
+
+> 도전 유구사항 특히 웹접근성 잘 챙겨줘
+
+### AI 출력 요지
+
+- 앱 코드와 Mock Service Worker를 병렬로 준비하는 동안에도 제목과 실제 화면 크기에 맞춘 골격을 먼저 보여준다. 부팅 뒤 목록 조회와 Suspense·Error Boundary 구조는 바꾸지 않는다.
+- 첫 보드에는 독립된 요청이 후보자 목록 하나뿐이므로 `useSuspenseQueries`를 추가하지 않는다. 목록을 한 번 받은 뒤 다섯 단계로 나누는 현재 구조가 요청 수와 실패 지점을 가장 적게 만든다.
+- 후보자 상세 버튼은 별도 `aria-label`을 만들지 않고 화면에 보이는 이름, 직무, 단계와 지원일을 접근 가능한 이름으로 사용한다. 동작을 설명하는 `후보자 상세 보기`만 화면 읽기 도구용 문구로 덧붙인다.
+- 사용하지 않던 `web-vitals` 의존성과 Knip 예외는 제거한다. 성능은 production build를 Lighthouse의 같은 조건에서 세 번 측정해 비교한다.
+
+### 리뷰 / 검증
+
+- 변경 전 production build를 모바일 Lighthouse 기본 조건으로 세 번 측정했다. 중앙값은 Performance 88점, FCP 2,259ms, LCP 3,615ms, CLS 0, TBT 54ms였다. LCP 요소는 보드 데이터가 아니라 헤더 설명이었다. 앱과 Mock Service Worker 준비를 모두 기다린 뒤 첫 UI를 그리는 부팅 경계가 영향을 줬다.
+- 처음에는 준비 화면을 일반 React 렌더로 추가했지만 측정값이 달라지지 않았다. 초기 렌더가 실제 DOM에 반영되는 시점을 보장하지 못한 것이 원인이어서 부팅 화면 한 번에만 `flushSync`를 사용했다. 앱 코드와 Mock Worker 로딩은 계속 병렬로 실행한다.
+- 필터 골격의 padding, grid breakpoint와 높이를 실제 검색·Select·버튼에 맞췄다. 수정 뒤 같은 조건의 세 번 측정은 모두 Performance 89점이었다. 중앙값은 FCP 2,273ms, LCP 3,343ms, CLS 0, TBT 52ms로 LCP가 약 272ms 줄었고 레이아웃 이동은 생기지 않았다. FCP와 LCP가 모두 목표값을 충족했다고 표현하지 않고, 초기 로드에는 50ms를 넘는 long task가 네 건 남아 있다는 점도 확인했다.
+- 접근성 독립 검사에서는 카드의 보이는 문구와 수동 `aria-label` 순서가 달라 WCAG 2.5.3 실험 규칙이 serious 위반을 보고했다. 수동 이름을 제거하고 실제 카드 내용을 이름으로 쓰도록 수정했다. Cypress에서 의미 문구를 파싱하던 부분도 테스트 전용 후보자명 속성으로 분리했다.
+- 기본 axe 검사에 포함되지 않는 `label-content-name-mismatch` 규칙을 보드 Cypress에서 명시적으로 켰다. production Lighthouse 접근성 점수는 100점이었고 같은 규칙의 위반은 0건이었다.
+- 가상 목록 검사는 root font-size를 32px로 높여 200% 텍스트 확대에서 카드 겹침과 문서 가로 넘침이 없고 axe 위반도 없는지 확인했다. 이는 브라우저 자체 확대가 아니라 텍스트 확대 회귀라는 범위로 기록한다.
+- `pnpm check`에서 format, ESLint, Secretlint, Knip, 애플리케이션과 Cypress 타입 검사, production build, Vitest 40개 파일의 283개 테스트와 Storybook build가 모두 통과했다. Chrome 151 production Cypress의 보드 3개, 상세 2개, 단계 이동 13개와 가상 목록 5개도 모두 통과했다.
+
+## [release-readiness] 제출 전 실행·배포 확인
+
+### 프롬프트 1
+
+> 모든 과제 완료되면 벡셀에도 배포하고 url도 리드미 문서에 남겨줘
+
+### 프롬프트 2
+
+> 내부브라우저 테스트도 잘 활용해줘
+
+### 프롬프트 3
+
+> 과제의 커밋과 프롬프트 룰 잘 확인해서 커밋해줘
+
+### 프롬프트 4
+
+> 적절한 타이밍에 mr 머지 진행해줘
+
+### AI 출력 요지
+
+- 필수 기능 일곱 가지와 도전 요구사항 다섯 가지를 구현 코드와 테스트, 실제 브라우저 결과에 다시 대조한다. 구현 여부를 문서 문구만으로 판단하지 않는다.
+- 공개 Vercel production 주소를 만들고 README와 GitHub 저장소 홈페이지에 같은 주소를 연결한다. 별도 백엔드는 배포하지 않고 HTTPS에서 Mock Service Worker가 목록, 상세, 단계 이동과 영속 저장을 제공한다.
+- 기존 커밋이나 프롬프트 기록을 다시 쓰지 않는다. 기능 PR과 후속 리뷰·검증 커밋을 같은 작업 흐름으로 묶어 공개 히스토리에서 PROMPTS 기록까지 따라갈 수 있게 한다.
+- 자동 접근성 검사와 실제 보조기기 검증은 구분한다. axe, Lighthouse와 키보드 회귀 결과는 기록하지만 수행하지 않은 VoiceOver 검증이나 WCAG 전체 적합성을 완료했다고 표현하지 않는다.
+
+### 커밋과 프롬프트 대응
+
+| 작업 흐름            | 기능 커밋            | PROMPTS 기록                                    |
+| -------------------- | -------------------- | ----------------------------------------------- |
+| 프로젝트 기반        | `c5d73b1`            | 프로젝트 기반 구성                              |
+| PR #1 후보자 계약    | `da551fa`            | `[candidate-contracts]`                         |
+| PR #2 Mock·API 경계  | `df9be81`–`ec75a03`  | `[mock-api]`, `[api-client]`, 후속 리뷰         |
+| PR #3 디자인 시스템  | `ee02849`–`a8bcffe`  | `[design-system]`, 후속 리뷰                    |
+| PR #4 조회·보드·상세 | `109d410`–`f774620`  | `[candidate-query]`부터 `[detail-panel]`까지    |
+| PR #5 시각 회귀      | `aedc67d`–`8a62ff8`  | `[visual-regression]`, 후속 리뷰                |
+| PR #6 가상 목록      | `9dc3a1b`–`51a12e2`  | `[virtualization]`                              |
+| PR #7 단계 변경      | `fac1fdd`–`6d032e3`  | `[stage-move]`, 후속 리뷰와 화면 승인           |
+| PR #8 낙관적 이동    | `2f7e22f`–`15fe1ef`  | `[optimistic-update]`, `[move-race]`, 후속 리뷰 |
+| PR #9 Undo           | `34d698e`–`32cdd68`  | `[undo]`, 후속 리뷰                             |
+| PR #10 드래그 이동   | `9f2772f`–`f5d8810`  | `[drag-and-drop]`, 후속 리뷰와 화면 승인        |
+| PR #11 최종 감사     | `bca22f1`, `007dbd6` | `[performance-a11y]`, `[release-readiness]`     |
+
+### 리뷰 / 검증
+
+- `007dbd6`을 별도 임시 디렉터리에 single-branch clone했다. Node 24.16.0과 pnpm 11.4.0에서 `pnpm install --frozen-lockfile`과 `pnpm check`가 통과했고 복제본 작업 트리에는 변경이 남지 않았다. production build, Vitest 40개 파일의 283개 테스트와 Storybook build를 같은 복제본에서 다시 확인했다.
+- PR #11의 GitHub Actions 실행 `33015409842`에서 Quality와 Cypress smoke가 3분 32초에 통과했다. 이어서 Ubuntu 24.04, Chrome 151과 Noto CJK를 고정한 시각 회귀가 1분 33초에 통과했다. SonarCloud Quality Gate도 새 이슈와 Security Hotspot 없이 통과했다.
+- CodeRabbit의 첫 전체 리뷰 요청은 사용량 제한으로 실행되지 않아 검토 결과로 세지 않았다. 제한이 풀린 뒤 같은 PR HEAD에 두 번째 전체 리뷰를 요청해 완료했다. 한 건의 낮은 우선순위 의견은 단계 변경 버튼을 선택한다는 전제가 실제 selector와 달랐다. 해당 코드는 `data-candidate-id`가 있는 상세 버튼을 선택하고 그 버튼에 `data-candidate-name`도 이미 있으므로 속성을 중복하지 않았다. 로컬과 공개 배포 Cypress 결과를 근거로 답변하고 thread를 해결했다.
+- Vercel 배포는 Ready 상태이며 `https://recruitment-pipeline-board-blue45fs-projects.vercel.app/`을 production alias로 사용한다. 배포 보호를 해제한 비로그인 요청에서 루트는 HTML 200, `mockServiceWorker.js`는 JavaScript 200을 반환했다. 서버 함수가 없는 정적 배포라 Vercel error log는 없었고 내부 브라우저 console의 error와 warning도 0건이었다.
+- 내부 브라우저에서 기본 200명, 후보자 상세 응답, 드래그로 서류검토에서 면접 이동, 같은 서버 receipt로 Undo, 명시적 이동 뒤 새로고침 영속성, 1,000명 전환을 확인했다. 1,000명 상태에서 실제 DOM의 후보자 상세 버튼은 30개였고 단계별 가상 목록은 다섯 개였다.
+- 공개 배포 URL을 대상으로 Chrome 151 Cypress 전체를 다시 실행했다. 보드 3개, 상세 2개, 단계 이동 13개, 가상 목록 5개를 합친 23개 시나리오가 모두 통과했으며 드래그 이동 Undo, 실패 복구, 연속 이동, 1,000명과 200% 텍스트 확대를 포함한다.
+- 모든 원격 ref의 patch를 Secretlint로 검사해 발견 0건을 확인했다. 저장소는 public이고 기본 브랜치는 `main`이다.
+- App 청크는 minify 기준 579.02kB여서 Vite의 500kB 경고가 남는다. 첫 화면은 작은 entry와 부팅 골격이 먼저 표시되고 App은 동적 import하므로 제출을 막는 오류는 아니지만 후속 기능이 늘면 상세와 대화상자 단위 분리를 다시 검토한다.
+- 자동 의미·대비 검사와 키보드 회귀는 통과했지만 실제 VoiceOver 발화 검증은 수행하지 않았다. 따라서 전체 보조기기 적합성을 자동 검사 결과만으로 단정하지 않는다.

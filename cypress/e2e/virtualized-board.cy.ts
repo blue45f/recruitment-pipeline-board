@@ -189,11 +189,11 @@ describe('virtualized candidate board', () => {
       })
   })
 
-  it('확대된 기본 글꼴에서도 가상 행을 실제 카드 높이에 맞춘다', () => {
+  it('200% 글꼴 확대에서도 가상 행과 문서 폭을 유지한다', () => {
     cy.viewport(1440, 900)
     visitRecruitmentBoardWithStableMockApi({
       listSize: 1_000,
-      rootFontSizePx: 20,
+      rootFontSizePx: 32,
     })
 
     cy.contains('[role="status"]', '전체 1,000명 중 1,000명을 표시합니다.', {
@@ -208,8 +208,28 @@ describe('virtualized candidate board', () => {
         const firstItem = $items.get(0).getBoundingClientRect()
         const secondItem = $items.get(1).getBoundingClientRect()
 
-        expect(firstItem.height).to.be.at.least(200)
+        expect(firstItem.height).to.be.at.least(300)
         expect(secondItem.top).to.be.at.least(firstItem.bottom)
       })
+      .first()
+      .within(() => {
+        cy.get<HTMLButtonElement>(CANDIDATE_SELECTOR)
+          .should('be.visible')
+          .focus()
+        cy.focused().should('match', CANDIDATE_SELECTOR)
+        cy.get<HTMLButtonElement>('[data-candidate-drag-handle]')
+          .should('be.visible')
+          .focus()
+        cy.focused().should('have.attr', 'data-candidate-drag-handle')
+      })
+    cy.window().then((browserWindow) => {
+      const { documentElement } = browserWindow.document
+
+      expect(documentElement.scrollWidth).to.be.at.most(
+        documentElement.clientWidth,
+      )
+    })
+    cy.injectAxe()
+    cy.checkA11y('main')
   })
 })

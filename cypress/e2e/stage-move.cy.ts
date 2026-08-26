@@ -637,7 +637,7 @@ describe('candidate stage move', () => {
       .should('be.visible')
       .then(($button) => {
         const candidateId = $button.attr('data-candidate-id')
-        const candidateName = $button.attr('aria-label')?.split(' 후보자,')[0]
+        const candidateName = $button.attr('data-candidate-name')
 
         expect(candidateId).to.be.a('string').and.not.equal('')
         expect(candidateName).to.be.a('string').and.not.equal('')

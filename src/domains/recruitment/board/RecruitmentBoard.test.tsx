@@ -512,7 +512,7 @@ describe('RecruitmentBoard', () => {
     renderBoard()
 
     const cardButton = await screen.findByRole('button', {
-      name: new RegExp(`^${candidate.name} 후보자,`),
+      name: new RegExp(`^${candidate.name} .*후보자 상세 보기$`),
     })
 
     cardButton.focus()
@@ -604,7 +604,7 @@ describe('RecruitmentBoard', () => {
       renderBoard()
       await user.click(
         await screen.findByRole('button', {
-          name: new RegExp(`^${candidate.name} 후보자,`),
+          name: new RegExp(`^${candidate.name} .*후보자 상세 보기$`),
         }),
       )
 
@@ -663,7 +663,7 @@ describe('RecruitmentBoard', () => {
     try {
       renderBoard()
       const cardButton = await screen.findByRole('button', {
-        name: new RegExp(`^${candidate.name} 후보자,`),
+        name: new RegExp(`^${candidate.name} .*후보자 상세 보기$`),
       })
       await user.click(cardButton)
 
