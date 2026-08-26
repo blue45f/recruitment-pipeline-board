@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "types": ["cypress", "cypress-axe"]
+  },
+  "include": ["./**/*.ts", "../cypress.config.ts"]
+}

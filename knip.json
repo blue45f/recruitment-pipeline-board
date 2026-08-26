@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreDependencies": [
+    "@hookform/resolvers",
+    "@secretlint/secretlint-rule-preset-recommend",
+    "@tanstack/react-virtual",
+    "ky",
+    "react-hook-form",
+    "web-vitals",
+    "zod",
+    "zustand"
+  ]
+}
