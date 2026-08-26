@@ -18,6 +18,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 const retryBoard = fn()
+const clearFilters = fn()
 
 function FeedbackFrame({ children }: Readonly<{ children: React.ReactNode }>) {
   return <main className="min-h-svh bg-[var(--color-fog)] p-5">{children}</main>
@@ -34,7 +35,15 @@ export const Loading: Story = {
 export const Empty: Story = {
   render: () => (
     <FeedbackFrame>
-      <CandidateEmptyState />
+      <CandidateEmptyState reason="no-candidates" />
+    </FeedbackFrame>
+  ),
+}
+
+export const NoResults: Story = {
+  render: () => (
+    <FeedbackFrame>
+      <CandidateEmptyState onClearFilters={clearFilters} reason="no-results" />
     </FeedbackFrame>
   ),
 }

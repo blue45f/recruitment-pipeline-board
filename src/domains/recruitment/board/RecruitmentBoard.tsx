@@ -3,22 +3,51 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query'
 import { Layers3, RadioTower } from 'lucide-react'
-import { Suspense, useRef } from 'react'
+import { Suspense, useDeferredValue, useRef } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
+import { useSearchParams } from 'react-router'
 
 import { candidateListQueryOptions } from '@/domains/recruitment/candidates/query'
 
-import { groupCandidatesByStage } from './model'
+import {
+  DEFAULT_CANDIDATE_FILTERS,
+  filterCandidates,
+  groupCandidatesByStage,
+  readCandidateFilters,
+  writeCandidateFilters,
+  type CandidateFilters,
+} from './model'
 import { BoardErrorFallback } from './ui/BoardErrorFallback'
 import { CandidateBoardSkeleton } from './ui/CandidateBoardSkeleton'
 import { CandidateBoardView } from './ui/CandidateBoardView'
 import { CandidateEmptyState } from './ui/CandidateEmptyState'
+import { CandidateFilters as CandidateFiltersForm } from './ui/CandidateFilters'
 
-function CandidateBoardContent() {
+type CandidateBoardContentProps = Readonly<{
+  filters: CandidateFilters
+  onClearFilters: (inputMethod: 'keyboard' | 'pointer') => void
+}>
+
+function CandidateBoardContent({
+  filters,
+  onClearFilters,
+}: CandidateBoardContentProps) {
   const { data: response } = useSuspenseQuery(candidateListQueryOptions(200))
+  const candidates = response.data
 
-  if (response.data.length === 0) {
-    return <CandidateEmptyState />
+  if (candidates.length === 0) {
+    return <CandidateEmptyState reason="no-candidates" />
+  }
+
+  const filteredCandidates = filterCandidates(candidates, filters)
+
+  if (filteredCandidates.length === 0) {
+    return (
+      <CandidateEmptyState
+        onClearFilters={onClearFilters}
+        reason="no-results"
+      />
+    )
   }
 
   return (
@@ -29,6 +58,10 @@ function CandidateBoardContent() {
           <strong className="font-data text-[var(--color-ink)]">
             {response.meta.total.toLocaleString('ko-KR')}
           </strong>
+          명 중{' '}
+          <strong className="font-data text-[var(--color-cobalt-strong)]">
+            {filteredCandidates.length.toLocaleString('ko-KR')}
+          </strong>
           명을 표시합니다.
         </p>
         <p className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--color-success)]">
@@ -37,7 +70,7 @@ function CandidateBoardContent() {
         </p>
       </div>
       <CandidateBoardView
-        candidatesByStage={groupCandidatesByStage(response.data)}
+        candidatesByStage={groupCandidatesByStage(filteredCandidates)}
       />
     </>
   )
@@ -45,6 +78,20 @@ function CandidateBoardContent() {
 
 export function RecruitmentBoard() {
   const boardRegionRef = useRef<HTMLElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const filters = readCandidateFilters(searchParams)
+  const deferredQuery = useDeferredValue(filters.query)
+  const deferredRole = useDeferredValue(filters.role)
+  const deferredFilters: CandidateFilters = {
+    query: deferredQuery,
+    role: deferredRole,
+  }
+  const isFiltering =
+    deferredQuery !== filters.query || deferredRole !== filters.role
+  const updateFilters = (nextFilters: CandidateFilters) => {
+    setSearchParams(writeCandidateFilters(nextFilters), { replace: true })
+  }
 
   return (
     <main className="min-h-svh bg-[var(--color-surface)] px-3 py-3 text-[var(--color-ink)] sm:px-5 sm:py-5 lg:px-7">
@@ -76,7 +123,14 @@ export function RecruitmentBoard() {
           </p>
         </header>
 
+        <CandidateFiltersForm
+          filters={filters}
+          onFiltersChange={updateFilters}
+          searchInputRef={searchInputRef}
+        />
+
         <section
+          aria-busy={isFiltering || undefined}
           aria-labelledby="pipeline-board-title"
           className="bg-[var(--color-fog)] px-3 py-5 sm:px-5 lg:px-7 lg:py-7"
           ref={boardRegionRef}
@@ -102,7 +156,15 @@ export function RecruitmentBoard() {
                 onReset={reset}
               >
                 <Suspense fallback={<CandidateBoardSkeleton />}>
-                  <CandidateBoardContent />
+                  <CandidateBoardContent
+                    filters={deferredFilters}
+                    onClearFilters={(inputMethod) => {
+                      if (inputMethod === 'keyboard') {
+                        searchInputRef.current?.focus()
+                      }
+                      updateFilters(DEFAULT_CANDIDATE_FILTERS)
+                    }}
+                  />
                 </Suspense>
               </ErrorBoundary>
             )}

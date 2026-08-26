@@ -1,13 +1,23 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { MemoryRouter, useLocation } from 'react-router'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 
 import {
   CANDIDATE_ROLE_LABELS,
   CANDIDATE_STAGE_LABELS,
   generateCandidateFixtures,
+  type Candidate,
 } from '@/domains/recruitment/candidates/model'
 import { ApiError } from '@/domains/recruitment/candidates/api'
 import { server } from '@/mocks/server'
@@ -15,6 +25,40 @@ import { server } from '@/mocks/server'
 import { RecruitmentBoard } from './RecruitmentBoard'
 
 const queryClients = new Set<QueryClient>()
+
+const FILTER_CANDIDATES = [
+  {
+    id: 'candidate-integration-frontend',
+    name: '김프론트',
+    role: 'frontend_engineer',
+    appliedAt: '2026-06-01T09:00:00.000Z',
+    currentStage: 'document_review',
+    email: 'candidate-integration-frontend@example.test',
+    experienceYears: 5,
+    memo: '검색 필터 통합 테스트를 위한 프론트엔드 후보자입니다.',
+    stageChangedAt: '2026-06-08T09:00:00.000Z',
+    revision: 1,
+  },
+  {
+    id: 'candidate-integration-backend',
+    name: '김백엔드',
+    role: 'backend_engineer',
+    appliedAt: '2026-06-02T09:00:00.000Z',
+    currentStage: 'interview',
+    email: 'candidate-integration-backend@example.test',
+    experienceYears: 7,
+    memo: '검색 필터 통합 테스트를 위한 백엔드 후보자입니다.',
+    stageChangedAt: '2026-06-09T09:00:00.000Z',
+    revision: 1,
+  },
+] as const satisfies readonly Candidate[]
+
+type QueryRetry = boolean | ((failureCount: number, error: unknown) => boolean)
+
+type RenderBoardOptions = Readonly<{
+  initialEntry?: string
+  retry?: QueryRetry
+}>
 
 function createDeferred() {
   let resolve: (() => void) | undefined
@@ -30,9 +74,16 @@ function createDeferred() {
   }
 }
 
-function renderBoard(
-  retry: boolean | ((failureCount: number, error: unknown) => boolean) = false,
-) {
+function LocationSearchProbe() {
+  const location = useLocation()
+
+  return <output data-testid="location-search">{location.search}</output>
+}
+
+function renderBoard({
+  initialEntry = '/',
+  retry = false,
+}: RenderBoardOptions = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry, retryDelay: 0 } },
   })
@@ -40,16 +91,34 @@ function renderBoard(
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <RecruitmentBoard />
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <RecruitmentBoard />
+        <LocationSearchProbe />
+      </MemoryRouter>
     </QueryClientProvider>,
   )
 }
+
+function currentSearchParams() {
+  return new URLSearchParams(screen.getByTestId('location-search').textContent)
+}
+
+beforeAll(() => {
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: vi.fn(),
+  })
+})
 
 afterEach(() => {
   for (const queryClient of queryClients) {
     queryClient.clear()
   }
   queryClients.clear()
+})
+
+afterAll(() => {
+  Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
 })
 
 describe('RecruitmentBoard', () => {
@@ -182,10 +251,10 @@ describe('RecruitmentBoard', () => {
     )
 
     try {
-      renderBoard(
-        (failureCount, error) =>
+      renderBoard({
+        retry: (failureCount, error) =>
           failureCount < 1 && error instanceof ApiError && error.retryable,
-      )
+      })
 
       const errorAlert = await screen.findByRole('alert')
       const boardRegion = screen.getByRole('region', {
@@ -214,11 +283,120 @@ describe('RecruitmentBoard', () => {
       ).toBeInTheDocument()
       expect(boardRegion).toHaveFocus()
       expect(within(boardRegion).getByRole('status')).toHaveTextContent(
-        '전체 200명을 표시합니다.',
+        '전체 200명 중 200명을 표시합니다.',
       )
       expect(requestCount).toBe(3)
     } finally {
       consoleError.mockRestore()
     }
+  })
+
+  it('이름과 직무 필터를 URL에 반영하면서 목록 API는 다시 호출하지 않는다', async () => {
+    const user = userEvent.setup()
+    let requestCount = 0
+
+    server.use(
+      http.get('*/api/candidates', () => {
+        requestCount += 1
+
+        return HttpResponse.json({
+          data: FILTER_CANDIDATES,
+          meta: { total: FILTER_CANDIDATES.length },
+        })
+      }),
+    )
+
+    renderBoard()
+
+    expect(await screen.findByText('김프론트')).toBeInTheDocument()
+    expect(screen.getByText('김백엔드')).toBeInTheDocument()
+
+    await user.type(
+      screen.getByRole('searchbox', { name: '후보자 검색' }),
+      '김',
+    )
+
+    await waitFor(() => {
+      expect(currentSearchParams().get('query')).toBe('김')
+    })
+
+    const roleSelect = screen.getByRole('combobox', { name: '직무' })
+    roleSelect.focus()
+    await user.keyboard(' ')
+    await screen.findByRole('option', { name: '전체 직무' })
+    await user.keyboard('{ArrowDown}{ArrowDown}{Enter}')
+
+    await waitFor(() => {
+      expect(currentSearchParams().get('role')).toBe('backend_engineer')
+      expect(screen.queryByText('김프론트')).not.toBeInTheDocument()
+    })
+    expect(screen.getByText('김백엔드')).toBeInTheDocument()
+    expect(requestCount).toBe(1)
+  })
+
+  it('URL의 잘못된 직무만 기본값으로 되돌리고 유효한 검색어는 복원한다', async () => {
+    server.use(
+      http.get('*/api/candidates', () =>
+        HttpResponse.json({
+          data: FILTER_CANDIDATES,
+          meta: { total: FILTER_CANDIDATES.length },
+        }),
+      ),
+    )
+
+    renderBoard({ initialEntry: '/?query=%EA%B9%80&role=unknown' })
+
+    expect(await screen.findByText('김프론트')).toBeInTheDocument()
+    expect(screen.getByText('김백엔드')).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: '후보자 검색' })).toHaveValue(
+      '김',
+    )
+    expect(screen.getByRole('combobox', { name: '직무' })).toHaveTextContent(
+      '전체 직무',
+    )
+  })
+
+  it('검색 결과를 키보드로 지우면 입력에 포커스를 돌려주고 전체 목록을 보여준다', async () => {
+    const user = userEvent.setup()
+    let requestCount = 0
+
+    server.use(
+      http.get('*/api/candidates', () => {
+        requestCount += 1
+
+        return HttpResponse.json({
+          data: FILTER_CANDIDATES,
+          meta: { total: FILTER_CANDIDATES.length },
+        })
+      }),
+    )
+
+    renderBoard()
+
+    expect(await screen.findByText('김프론트')).toBeInTheDocument()
+
+    await user.type(
+      screen.getByRole('searchbox', { name: '후보자 검색' }),
+      '없는 후보자',
+    )
+
+    expect(
+      await screen.findByRole('heading', {
+        name: '조건에 맞는 후보자가 없습니다',
+      }),
+    ).toBeInTheDocument()
+    expect(currentSearchParams().get('query')).toBe('없는 후보자')
+
+    const clearFiltersButton = screen.getByRole('button', {
+      name: '검색 조건 지우기',
+    })
+    clearFiltersButton.focus()
+    await user.keyboard('{Enter}')
+
+    expect(await screen.findByText('김프론트')).toBeInTheDocument()
+    expect(screen.getByText('김백엔드')).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: '후보자 검색' })).toHaveFocus()
+    expect(currentSearchParams().get('query')).toBeNull()
+    expect(requestCount).toBe(1)
   })
 })

@@ -2,10 +2,8 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": ["src/domains/**/index.ts"],
   "ignoreDependencies": [
-    "@hookform/resolvers",
     "@secretlint/secretlint-rule-preset-recommend",
     "@tanstack/react-virtual",
-    "react-hook-form",
     "web-vitals",
     "zustand"
   ]

@@ -23,7 +23,7 @@ describe('candidate board feedback', () => {
   })
 
   it('전체 후보자 데이터가 비어 있음을 안내한다', () => {
-    render(<CandidateEmptyState />)
+    render(<CandidateEmptyState reason="no-candidates" />)
 
     const emptyState = screen.getByRole('status')
 
@@ -64,5 +64,30 @@ describe('candidate board feedback', () => {
     await user.click(screen.getByRole('button', { name: '다시 시도' }))
 
     expect(onRetry).toHaveBeenCalledWith('pointer')
+  })
+
+  it('검색 결과가 없으면 전체 데이터 빈 상태와 다른 안내를 제공한다', async () => {
+    const user = userEvent.setup()
+    const onClearFilters = vi.fn()
+
+    render(
+      <CandidateEmptyState
+        onClearFilters={onClearFilters}
+        reason="no-results"
+      />,
+    )
+
+    expect(
+      screen.getByRole('heading', {
+        name: '조건에 맞는 후보자가 없습니다',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('등록된 후보자가 없습니다'),
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '검색 조건 지우기' }))
+
+    expect(onClearFilters).toHaveBeenCalledWith('pointer')
   })
 })
