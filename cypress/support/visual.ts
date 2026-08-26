@@ -7,8 +7,8 @@ addCompareSnapshotCommand({
   errorThreshold: 0,
   overwrite: true,
   pixelmatchOptions: {
-    includeAA: false,
-    threshold: 0.1,
+    includeAA: true,
+    threshold: 0,
   },
   scale: false,
 })

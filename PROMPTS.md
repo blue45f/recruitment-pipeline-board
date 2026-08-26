@@ -330,3 +330,26 @@
 - SonarCloud가 가변 Action 참조와 Cypress 설치 명령을 보안 문제로 표시했다. Action은 commit SHA, 컨테이너는 digest로 고정하고 lifecycle script를 끈 상태에서 lockfile의 Cypress 실행 파일만 직접 호출하도록 고쳤다.
 - `pnpm check`에서 format, ESLint, Secretlint, Knip, 타입 검사, production build, Vitest 23개 파일의 111개 테스트와 Storybook build가 통과했다.
 - GitHub Actions run 32963479784에서 일반 Cypress 4개와 시각 비교 4개가 모두 통과했다. 시각 비교의 불일치 허용 비율은 0이며 diff 산출물은 생성되지 않았다. SonarCloud Quality Gate도 통과했다.
+
+## [review-fix] 시각 회귀 CI와 코드 리뷰 보완
+
+### 프롬프트 1
+
+> 코드 래빗 리뷰 받은건 너가 확인해서 수정해주고 코드 래빗 뿐 아니라 클로드나 재미나이 리뷰도 함께 받으면서 진행해줘
+
+### 프롬프트 2
+
+> 적절한 타이밍에 mr 머지 진행해줘
+
+### AI 출력 요지
+
+- 병합 전에 최신 커밋의 Quality, SonarCloud, 시각 비교와 CodeRabbit 전체 리뷰를 모두 확인하는 게이트를 적용했다.
+- 일반 Cypress와 시각 비교에서 중복하던 안정화 방문 로직을 공용 helper로 옮기고, 모든 브라우저 테스트가 Mock API의 15% 실패 확률에 영향을 받지 않게 했다.
+- 두 checkout의 자격 증명 보존을 끄고 픽셀 색상 임계값, 불일치 허용 비율과 안티앨리어싱 비교를 모두 가장 엄격한 값으로 맞췄다.
+
+### 리뷰 / 검증
+
+- 문서 커밋 뒤 GitHub Actions run 32964125402에서 일반 Cypress 4개 중 모바일 보드 한 개가 실패했다. 해당 테스트만 안정화 방문 함수를 쓰지 않아 Mock API의 무작위 503을 받을 수 있었고, 실제 로그에서도 보드가 끝내 나타나지 않았다.
+- 단순 재실행이나 timeout 연장 대신 localStorage 초기화와 Web Crypto 고정을 하나의 helper로 합쳤다. 보드 테스트를 세 번 연속 실행해 6개 검사가 모두 통과했고 전체 Cypress 4개도 다시 통과했다.
+- CodeRabbit 전체 리뷰의 두 의견을 직접 확인해 checkout 자격 증명 제거와 엄격한 픽셀 비교를 모두 반영했다. 별도 읽기 전용 diff 리뷰에서도 보완 변경을 막을 P0~P3 항목은 없었다.
+- `pnpm check`에서 format, ESLint, Secretlint, Knip, 타입 검사, production build, Vitest 23개 파일의 111개 테스트와 Storybook build가 통과했다. 보완한 원격 커밋의 Quality와 시각 비교 결과를 확인하기 전에는 병합하지 않는다.

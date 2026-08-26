@@ -1,24 +1,7 @@
+import { visitRecruitmentBoardWithStableMockApi } from '../support/visitRecruitmentBoard'
+
 const DESKTOP_VIEWPORT = { height: 900, width: 1440 } as const
 const MOBILE_VIEWPORT = { height: 844, width: 390 } as const
-
-function visitWithStableMockApi() {
-  cy.visit('/', {
-    onBeforeLoad(window) {
-      window.localStorage.clear()
-
-      Object.defineProperty(window.crypto, 'getRandomValues', {
-        configurable: true,
-        value<T extends ArrayBufferView | null>(values: T) {
-          if (values !== null) {
-            Reflect.set(values, 0, 0xffffffff)
-          }
-
-          return values
-        },
-      })
-    },
-  })
-}
 
 function waitForStableBoard() {
   cy.contains('h1', '채용 후보자 보드').should('be.visible')
@@ -66,7 +49,7 @@ function openFirstCandidateDetail() {
 describe('recruitment board visual regression', () => {
   it('데스크톱 보드 기준 화면과 일치한다', () => {
     cy.viewport(DESKTOP_VIEWPORT.width, DESKTOP_VIEWPORT.height)
-    visitWithStableMockApi()
+    visitRecruitmentBoardWithStableMockApi()
     waitForStableBoard()
 
     cy.compareSnapshot('board-desktop')
@@ -74,7 +57,7 @@ describe('recruitment board visual regression', () => {
 
   it('모바일 보드 기준 화면과 일치한다', () => {
     cy.viewport(MOBILE_VIEWPORT.width, MOBILE_VIEWPORT.height)
-    visitWithStableMockApi()
+    visitRecruitmentBoardWithStableMockApi()
     waitForStableBoard()
 
     cy.compareSnapshot('board-mobile')
@@ -82,7 +65,7 @@ describe('recruitment board visual regression', () => {
 
   it('데스크톱 상세 기준 화면과 일치한다', () => {
     cy.viewport(DESKTOP_VIEWPORT.width, DESKTOP_VIEWPORT.height)
-    visitWithStableMockApi()
+    visitRecruitmentBoardWithStableMockApi()
     waitForStableBoard()
     openFirstCandidateDetail()
 
@@ -91,7 +74,7 @@ describe('recruitment board visual regression', () => {
 
   it('모바일 상세 기준 화면과 일치한다', () => {
     cy.viewport(MOBILE_VIEWPORT.width, MOBILE_VIEWPORT.height)
-    visitWithStableMockApi()
+    visitRecruitmentBoardWithStableMockApi()
     waitForStableBoard()
     openFirstCandidateDetail()
 
