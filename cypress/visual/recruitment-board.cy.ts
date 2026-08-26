@@ -1,3 +1,8 @@
+import {
+  cancelCandidatePointerDrag,
+  moveCandidatePointerToStage,
+  startCandidatePointerDrag,
+} from '../support/candidatePointerDrag'
 import { visitRecruitmentBoardWithStableMockApi } from '../support/visitRecruitmentBoard'
 
 const DESKTOP_VIEWPORT = { height: 900, width: 1440 } as const
@@ -62,6 +67,30 @@ describe('recruitment board visual regression', () => {
     waitForStableBoard()
 
     cy.compareSnapshot('board-desktop')
+  })
+
+  it('드래그 중인 후보자와 이동 가능한 단계를 구분해 표시한다', () => {
+    cy.viewport(DESKTOP_VIEWPORT.width, DESKTOP_VIEWPORT.height)
+    visitRecruitmentBoardWithStableMockApi()
+    waitForStableBoard()
+
+    cy.get<HTMLButtonElement>(
+      '[data-candidate-stage-drop-zone="document_review"] [data-candidate-drag-handle]',
+    )
+      .first()
+      .should('be.visible')
+      .then(($handle) => {
+        const candidateId = $handle.attr('data-candidate-drag-handle')
+
+        expect(candidateId, 'drag candidate id')
+          .to.be.a('string')
+          .and.not.equal('')
+
+        return startCandidatePointerDrag(String(candidateId))
+      })
+      .then((session) => moveCandidatePointerToStage(session, 'interview'))
+      .then(() => cy.compareSnapshot('board-drag-desktop'))
+      .then(() => cancelCandidatePointerDrag())
   })
 
   it('모바일 보드 기준 화면과 일치한다', () => {

@@ -626,3 +626,32 @@
 - 리뷰 보완 뒤 처음 실행한 전체 `pnpm check`는 Vitest 266개 중 보드 단계 이동 통합 테스트 2개가 실패했다. 예전 테스트의 성공 PATCH fixture 세 곳에 새 필수 값인 `undoReceipt`가 없어서 coordinator가 응답을 결과 불명으로 분류하고 재전송한 것이 원인이었다. 세 fixture 모두 요청의 mutation ID로 commit하고 공유 응답 스키마를 통과하는 receipt를 만들도록 고친 뒤, 해당 통합 테스트 파일의 6개 테스트가 통과했다.
 - 전체 `pnpm check`를 다시 실행해 format, ESLint, Secretlint, Knip, 타입 검사, production build, Vitest 37개 파일의 266개 테스트와 Storybook build가 모두 통과했다. 커버리지는 statements 91.38%, branches 83.69%, functions 93.83%, lines 93.79%였다.
 - 수정한 최신 head의 CodeRabbit 재리뷰 요청은 rate limit에 걸려 이전 리뷰 이후의 변경까지 검토됐다고 기록하지 않는다. Claude나 Gemini의 별도 응답도 이번 검증 결과에 포함하지 않았다. 최신 원격 Quality, SonarCloud, 시각 비교는 커밋과 push 전이라 아직 실행 결과가 없으므로 완료로 기록하지 않는다.
+
+## [drag-and-drop] 후보자 드래그 이동
+
+### 프롬프트 1
+
+> 이동 기능 좀더 고도화 가능할까? 그래그앤 드랍으로도 이동 가능하도록?
+
+### 프롬프트 2
+
+> 나중에 드래그앤 드랍으로 변경한것도 되돌리기 가능하도록 해줘
+
+### AI 출력 요지
+
+- 기존 단계 변경 버튼을 드래그 핸들로 함께 사용해 키보드 탭 정지점을 늘리지 않았다. 포인터 사용자는 후보자를 다른 단계 열로 끌어 놓을 수 있다. 키보드 사용자는 같은 버튼으로 기존 단계 변경 대화상자를 연다.
+- 마우스와 펜은 8px을 넘게 움직였을 때 드래그를 시작한다. 터치는 250ms 동안 누른 뒤 허용 거리 8px 안에 있어야 드래그가 시작된다. 빈 단계를 포함해 열 전체를 드롭 영역으로 사용한다.
+- 드래그 이동도 기존 `submitStageMove`와 `CandidateMovementCoordinator`를 그대로 거친다. 별도 캐시 수정이나 API를 만들지 않고 PATCH 직렬화, 동시 요청 제한, 서버 receipt, 한 번만 가능한 Undo, 실패 rollback과 결과 재확인 정책을 공유한다.
+- 1,000명 가상 목록에서는 현재 키보드 후보자와 드래그 중인 후보자를 모두 렌더 범위에 고정한다. 원본 카드가 화면 밖으로 스크롤돼도 센서가 참조하는 DOM은 드래그가 끝날 때까지 유지된다.
+
+### 리뷰 / 검증
+
+- 첫 접근성 리뷰에서는 포인터 전용 기능에 dnd-kit의 접근성 플러그인을 붙이면 Enter와 Space가 대화상자를 여는 버튼에 `draggable` 의미가 생기는 충돌을 발견했다. 해당 플러그인은 제외하고 네이티브 버튼과 `aria-haspopup="dialog"` 의미를 유지했다. 같은 단계는 `MOVE TO`가 아니라 `CURRENT`로 표시하고 파싱하지 못한 출발 데이터가 유효한 목적지처럼 보이지 않도록 방어했다.
+- Cypress의 합성 PointerEvent에는 실제 pointer capture가 없어 dnd-kit이 예외를 냈다. 테스트 브라우저에서만 capture 메서드를 보완했다. helper는 8px을 넘기는 활성화 이동 뒤 원본과 overlay가 렌더된 것을 기다린 다음 목적 단계로 이동하도록 나눴다. 제품 코드는 이 보완에 의존하지 않는다.
+- 드래그 중 원본 카드 전체를 35% 투명하게 만든 초안은 활성 상태 axe 검사에서 글자 대비 위반을 일으켰다. 텍스트 대비는 유지하고 축소, 코발트 테두리와 링으로 이동 중 상태를 구분하도록 수정했다.
+- 같은 단계, 보드 밖, Escape 취소에서는 PATCH와 Undo가 생기지 않았다. 다른 단계 이동 뒤 서버 receipt로 Undo 보상 PATCH를 보내 원래 단계로 돌아왔고 두 요청의 mutation ID와 revision 관계도 확인했다. 빈 단계 드롭, 동작 줄이기, Undo 결과 재확인 중 드래그 차단까지 포함한 단계 이동 Cypress 13개와 가상 목록 Cypress 5개가 통과했다.
+- 보이는 `드래그 · 단계 변경` 문구가 접근 가능한 이름에 모두 들어가도록 맞췄다. 마우스는 정확히 8px 움직였을 때 활성화되지 않고, 터치는 250ms가 지나야 활성화되며 그 전에 허용 거리 8px을 벗어나거나 활성화 뒤 `pointercancel`이 발생하면 PATCH 없이 정리되는지 실제 포인터 이벤트로 확인했다.
+- DnD 판정과 가상 범위, 버튼 의미, 이동 overlay를 다루는 Vitest 26개와 보드 이동·Undo를 함께 포함한 관련 6개 파일의 38개 테스트가 통과했다. Cypress 전용 strict TypeScript 검사도 `pnpm check`와 원격 Quality에서 항상 실행되도록 연결했다. 마운트가 끝난 production 화면을 AccessLint로 다시 검사해 위반 0건을 확인했다.
+- 현재 전체 diff로 `pnpm check`를 다시 실행해 format, ESLint와 접근성 규칙, Secretlint, Knip, 타입 검사, production build, Vitest 40개 파일의 282개 테스트와 Storybook build가 모두 통과했다.
+- 최신 production bundle의 Electron Cypress는 보드 3개, 상세 2개, 단계 이동 13개, 가상 목록 5개를 합친 23개 시나리오가 모두 통과했다. 커버리지는 statements 91.04%, branches 82.93%, functions 93.51%, lines 93.69%였다.
+- 로컬 Chrome에서 기본 데스크톱·모바일, 상세 데스크톱·모바일과 활성 드래그 화면까지 다섯 장을 생성해 직접 확인했다. Linux 기준선은 macOS 결과로 교체하지 않고 PR의 고정 Chrome·Noto CJK 환경에서 actual과 diff를 확인한 뒤 승인한다.

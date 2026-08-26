@@ -52,6 +52,7 @@ type CandidateBoardContentProps = Readonly<{
   listSize: CandidateListSize
   onClearFilters: (inputMethod: 'keyboard' | 'pointer') => void
   onChangeStage: (candidate: Candidate) => void
+  onMoveCandidate: (candidate: Candidate, targetStage: CandidateStage) => void
   onOpenCandidate: (candidateId: CandidateId) => void
   onPrefetchCandidate: (candidateId: CandidateId) => void
   pendingCandidateIds: ReadonlySet<CandidateId>
@@ -65,6 +66,7 @@ function CandidateBoardContent({
   listSize,
   onClearFilters,
   onChangeStage,
+  onMoveCandidate,
   onOpenCandidate,
   onPrefetchCandidate,
   pendingCandidateIds,
@@ -117,6 +119,7 @@ function CandidateBoardContent({
         candidatesByStage={groupCandidatesByStage(filteredCandidates)}
         {...(focusRequest === undefined ? {} : { focusRequest })}
         onChangeStage={onChangeStage}
+        onMoveCandidate={onMoveCandidate}
         onOpenCandidate={onOpenCandidate}
         onPrefetchCandidate={onPrefetchCandidate}
         pendingCandidateIds={pendingCandidateIds}
@@ -344,6 +347,7 @@ export function RecruitmentBoard() {
                       updateFilters(DEFAULT_CANDIDATE_FILTERS)
                     }}
                     onChangeStage={setStageChangeCandidate}
+                    onMoveCandidate={submitStageMove}
                     onOpenCandidate={openCandidate}
                     onPrefetchCandidate={(candidateId) => {
                       void queryClient.prefetchQuery(

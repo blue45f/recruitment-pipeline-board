@@ -12,6 +12,7 @@
     "build": "pnpm typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 4317 --strictPort",
     "typecheck": "tsc -b --pretty false",
+    "typecheck:cypress": "tsc -p cypress/tsconfig.json --noEmit --pretty false",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
@@ -35,10 +36,13 @@
     "sonar:down": "docker compose -f compose.sonar.yml down",
     "sonar:logs": "docker compose -f compose.sonar.yml logs --tail=100 -f sonarqube",
     "sonar:scan": "pnpm test:coverage && sonar-scanner-npm",
-    "check": "pnpm format:check && pnpm lint && pnpm secretlint && pnpm knip && pnpm build && pnpm test && pnpm storybook:build",
+    "check": "pnpm format:check && pnpm lint && pnpm secretlint && pnpm knip && pnpm build && pnpm typecheck:cypress && pnpm test && pnpm storybook:build",
     "prepare": "husky"
   },
   "dependencies": {
+    "@dnd-kit/collision": "0.5.0",
+    "@dnd-kit/dom": "0.5.0",
+    "@dnd-kit/react": "0.5.0",
     "@hookform/resolvers": "^5.9.1",
     "@tanstack/react-query": "^5.102.3",
     "@tanstack/react-query-devtools": "^5.102.3",

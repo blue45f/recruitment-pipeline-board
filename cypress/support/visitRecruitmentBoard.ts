@@ -18,6 +18,17 @@ export function visitRecruitmentBoardWithStableMockApi({
     onBeforeLoad(window) {
       let mockRandomValueIndex = 0
 
+      Object.defineProperties(window.HTMLElement.prototype, {
+        releasePointerCapture: {
+          configurable: true,
+          value: () => undefined,
+        },
+        setPointerCapture: {
+          configurable: true,
+          value: () => undefined,
+        },
+      })
+
       if (storageMode === 'reset') {
         window.localStorage.clear()
       }

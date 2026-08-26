@@ -1,4 +1,8 @@
 import { visitRecruitmentBoardWithStableMockApi } from '../support/visitRecruitmentBoard'
+import {
+  cancelCandidatePointerDrag,
+  startCandidatePointerDrag,
+} from '../support/candidatePointerDrag'
 
 const BOARD_SELECTOR = '[aria-label="채용 단계별 후보자 보드"]'
 const CANDIDATE_SELECTOR = '[data-candidate-id]'
@@ -79,6 +83,40 @@ describe('virtualized candidate board', () => {
 
     cy.injectAxe()
     cy.checkA11y('main')
+  })
+
+  it('드래그 중인 후보자는 가상 범위 밖으로 스크롤해도 유지한다', () => {
+    cy.viewport(1440, 900)
+    visitRecruitmentBoardWithStableMockApi({ listSize: 1_000 })
+
+    cy.contains('[role="status"]', '전체 1,000명 중 1,000명을 표시합니다.', {
+      timeout: 8_000,
+    }).should('be.visible')
+    cy.get<HTMLElement>(VIRTUAL_LIST_SELECTOR).first().as('dragSourceList')
+    cy.get('@dragSourceList')
+      .find<HTMLButtonElement>('[data-candidate-drag-handle]')
+      .eq(1)
+      .invoke('attr', 'data-candidate-drag-handle')
+      .then((candidateId) => {
+        expect(candidateId).to.be.a('string').and.not.equal('')
+
+        const id = String(candidateId)
+
+        startCandidatePointerDrag(id).then(() => {
+          cy.get('@dragSourceList').scrollTo('bottom', { duration: 0 })
+          cy.get(`[data-candidate-drag-handle="${id}"]`)
+            .should('exist')
+            .closest('[data-candidate-dragging="true"]')
+            .should('exist')
+          cy.get('@dragSourceList')
+            .find(VIRTUAL_ITEM_SELECTOR)
+            .its('length')
+            .should('be.lte', 13)
+
+          cancelCandidatePointerDrag()
+          cy.get(`[data-candidate-drag-handle="${id}"]`).should('not.exist')
+        })
+      })
   })
 
   it('포커스한 채 스크롤한 뒤 목록을 떠나도 현재 위치의 tab stop을 복구한다', () => {

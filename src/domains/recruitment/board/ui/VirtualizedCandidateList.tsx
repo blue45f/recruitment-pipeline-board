@@ -1,8 +1,4 @@
-import {
-  defaultRangeExtractor,
-  useVirtualizer,
-  type Range,
-} from '@tanstack/react-virtual'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   useEffect,
   useLayoutEffect,
@@ -18,7 +14,9 @@ import type {
 } from '@/domains/recruitment/candidates/model'
 
 import type { CandidateBoardFocusRequest } from './candidateBoardFocus'
-import { CandidateCard, type CandidateCardAction } from './CandidateCard'
+import { extractRangeWithPinnedCandidates } from './candidateVirtualRange'
+import type { CandidateCardAction } from './CandidateCard'
+import { DraggableCandidateCard } from './DraggableCandidateCard'
 
 const DEFAULT_ROOT_FONT_SIZE = 16
 const CANDIDATE_CARD_ESTIMATED_HEIGHT_REM = 14
@@ -37,24 +35,6 @@ function getRootFontSize() {
   )
 
   return Number.isFinite(rootFontSize) ? rootFontSize : DEFAULT_ROOT_FONT_SIZE
-}
-
-function extractRangeWithActiveCandidate(
-  range: Range,
-  activeCandidateIndex: number,
-) {
-  const visibleIndexes = defaultRangeExtractor(range)
-
-  if (
-    activeCandidateIndex < 0 ||
-    visibleIndexes.includes(activeCandidateIndex)
-  ) {
-    return visibleIndexes
-  }
-
-  return [...visibleIndexes, activeCandidateIndex].sort(
-    (left, right) => left - right,
-  )
 }
 
 type CandidateNavigationKey =
@@ -93,6 +73,7 @@ function getTargetCandidateIndex(
 export type VirtualizedCandidateListProps = Readonly<{
   candidates: readonly Candidate[]
   descriptionId: string
+  draggedCandidateId?: CandidateId
   focusRequest?: CandidateBoardFocusRequest
   label: string
   onChangeStage: (candidate: Candidate) => void
@@ -105,6 +86,7 @@ export type VirtualizedCandidateListProps = Readonly<{
 export function VirtualizedCandidateList({
   candidates,
   descriptionId,
+  draggedCandidateId,
   focusRequest,
   label,
   onChangeStage,
@@ -137,6 +119,9 @@ export function VirtualizedCandidateList({
     : (candidates[0]?.id ?? null)
   const activeCandidateIndex = candidates.findIndex(
     ({ id }) => id === resolvedActiveCandidateId,
+  )
+  const draggedCandidateIndex = candidates.findIndex(
+    ({ id }) => id === draggedCandidateId,
   )
   const estimatedCandidateHeight =
     rootFontSize * CANDIDATE_CARD_ESTIMATED_HEIGHT_REM
@@ -174,7 +159,10 @@ export function VirtualizedCandidateList({
     paddingEnd: candidateGap,
     paddingStart: candidateGap,
     rangeExtractor: (range) =>
-      extractRangeWithActiveCandidate(range, activeCandidateIndex),
+      extractRangeWithPinnedCandidates(range, [
+        activeCandidateIndex,
+        draggedCandidateIndex,
+      ]),
     useFlushSync: false,
   })
   const virtualCandidates = virtualizer.getVirtualItems()
@@ -388,7 +376,7 @@ export function VirtualizedCandidateList({
               transform: `translateY(${virtualCandidate.start}px)`,
             }}
           >
-            <CandidateCard
+            <DraggableCandidateCard
               {...(isActiveCandidate
                 ? { activeAction: resolvedActiveAction }
                 : {})}

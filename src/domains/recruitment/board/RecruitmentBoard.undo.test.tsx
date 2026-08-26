@@ -245,7 +245,7 @@ async function submitStageMove(
 ) {
   await user.click(
     await screen.findByRole('button', {
-      name: `${candidate.name} 후보자 단계 변경`,
+      name: `${candidate.name} 후보자 드래그 · 단계 변경`,
     }),
   )
 
@@ -588,7 +588,7 @@ describe('RecruitmentBoard candidate stage move Undo', () => {
       name: `${candidate.name} 후보자의 되돌리기 결과를 확인해 주세요`,
     })
     const stageChangeButton = screen.getByRole('button', {
-      name: `${candidate.name} 후보자 단계 변경`,
+      name: `${candidate.name} 후보자 드래그 · 단계 변경`,
     })
 
     expect(verificationAlert).toHaveTextContent(
