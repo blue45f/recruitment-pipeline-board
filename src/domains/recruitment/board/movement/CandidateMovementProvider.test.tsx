@@ -3,9 +3,13 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { StrictMode, useState, type ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { toast } from 'sonner'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 
-import type { Candidate } from '../../candidates/model'
+import {
+  candidateStageUpdateRequestSchema,
+  type Candidate,
+} from '../../candidates/model'
 import { candidateQueryKeys } from '../../candidates/query'
 import { server } from '@/mocks/server'
 import {
@@ -50,9 +54,15 @@ function MovementProbe() {
       >
         면접로 이동
       </button>
+      <button onClick={() => coordinator.undoLatest()} type="button">
+        실행 취소
+      </button>
       <output data-testid="movement-failure">{failure?.kind ?? ''}</output>
       <output data-testid="movement-result">
         {snapshot.lastResultByCandidateId.get(candidate.id)?.status ?? ''}
+      </output>
+      <output data-testid="undo-status">
+        {snapshot.undoState?.status ?? ''}
       </output>
     </>
   )
@@ -123,6 +133,104 @@ function renderWithProvider(
 }
 
 describe('CandidateMovementProvider', () => {
+  it('보상 409를 재전송하지 않고 정규화한 이유까지 안전하게 알린다', async () => {
+    const user = userEvent.setup()
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        mutations: { retry: false },
+        queries: { retry: false },
+      },
+    })
+    const toastError = vi.spyOn(toast, 'error')
+    const patchBodies: unknown[] = []
+
+    onTestFinished(() => toastError.mockRestore())
+    queryClient.setQueryData(candidateQueryKeys.list(200), {
+      data: [candidate],
+      meta: { total: 1 },
+    })
+    server.use(
+      http.patch('*/api/candidates/:candidateId/stage', async ({ request }) => {
+        const body = candidateStageUpdateRequestSchema.parse(
+          await request.json(),
+        )
+
+        patchBodies.push(body)
+
+        if (body.compensatesClientMutationId !== undefined) {
+          return HttpResponse.json(
+            {
+              error: {
+                code: 'UNDO_NOT_AVAILABLE',
+                message: 'untrusted compensation detail',
+                requestId: 'undo-not-available',
+                retryable: false,
+              },
+            },
+            {
+              headers: { 'x-request-id': 'undo-not-available' },
+              status: 409,
+            },
+          )
+        }
+
+        const movedCandidate: Candidate = {
+          ...candidate,
+          currentStage: body.stage,
+          revision: body.expectedRevision + 1,
+          stageChangedAt: '2026-08-27T00:00:00.000Z',
+        }
+
+        return HttpResponse.json({
+          data: movedCandidate,
+          meta: {
+            clientMutationId: body.clientMutationId,
+            requestId: 'forward-success',
+            undoReceipt: {
+              candidateId: candidate.id,
+              clientMutationId: body.clientMutationId,
+              committedRevision: movedCandidate.revision,
+              currentStage: movedCandidate.currentStage,
+              expectedRevision: body.expectedRevision,
+              previousStage: candidate.currentStage,
+            },
+          },
+        })
+      }),
+      http.get('*/api/candidates/:candidateId', () =>
+        HttpResponse.json({
+          data: {
+            ...candidate,
+            currentStage: 'interview',
+            revision: 1,
+            stageChangedAt: '2026-08-27T00:00:00.000Z',
+          },
+        }),
+      ),
+    )
+
+    renderWithProvider(queryClient, <MovementProbe />)
+    await user.click(screen.getByRole('button', { name: '면접로 이동' }))
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('undo-status')).toHaveTextContent('available')
+    })
+    await user.click(screen.getByRole('button', { name: '실행 취소' }))
+
+    await vi.waitFor(() => {
+      expect(screen.getByTestId('undo-status')).toHaveTextContent('')
+    })
+    expect(patchBodies).toHaveLength(2)
+    expect(toastError).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '이 단계 변경은 더 이상 되돌릴 수 없습니다. 최신 상태를 확인해 주세요.',
+      ),
+    )
+    expect(toastError).not.toHaveBeenCalledWith(
+      expect.stringContaining('untrusted compensation detail'),
+    )
+  })
+
   it('409가 아닌 응답의 revision 코드는 rebase하지 않는다', async () => {
     const user = userEvent.setup()
     const queryClient = new QueryClient({
@@ -175,10 +283,11 @@ describe('CandidateMovementProvider', () => {
   it('consumer 라우트가 해제돼도 요청과 projection을 Provider에 유지한다', async () => {
     const user = userEvent.setup()
     const queryClient = new QueryClient()
-    let resolveExecution: ((candidate: Candidate) => void) | undefined
+    let resolveExecution:
+      ((execution: Readonly<{ candidate: Candidate }>) => void) | undefined
     const execute = vi.fn(
       () =>
-        new Promise<Candidate>((resolve) => {
+        new Promise<Readonly<{ candidate: Candidate }>>((resolve) => {
           resolveExecution = resolve
         }),
     )
@@ -208,10 +317,12 @@ describe('CandidateMovementProvider', () => {
     await user.click(screen.getByRole('button', { name: '라우트 해제' }))
 
     resolveExecution?.({
-      ...candidate,
-      currentStage: 'interview',
-      revision: candidate.revision + 1,
-      stageChangedAt: '2026-08-27T00:00:00.000Z',
+      candidate: {
+        ...candidate,
+        currentStage: 'interview',
+        revision: candidate.revision + 1,
+        stageChangedAt: '2026-08-27T00:00:00.000Z',
+      },
     })
 
     await vi.waitFor(() => {

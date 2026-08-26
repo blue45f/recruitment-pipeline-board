@@ -114,6 +114,17 @@ function stageUpdateSuccessResponse(
   >,
   currentRequestId: string,
 ) {
+  const undoReceipt =
+    result.receipt.operationKind === 'move'
+      ? {
+          candidateId: result.receipt.candidateId,
+          clientMutationId: result.receipt.clientMutationId,
+          previousStage: result.receipt.previousStage,
+          currentStage: result.receipt.currentStage,
+          expectedRevision: result.receipt.expectedRevision,
+          committedRevision: result.receipt.candidate.revision,
+        }
+      : undefined
   const response = candidateStageUpdateResponseSchema.parse({
     data: result.receipt.candidate,
     meta: {
@@ -121,6 +132,7 @@ function stageUpdateSuccessResponse(
       // header below still correlates this individual transport request.
       requestId: result.receipt.requestId,
       clientMutationId: result.receipt.clientMutationId,
+      ...(undoReceipt === undefined ? {} : { undoReceipt }),
     },
   })
 
@@ -285,6 +297,12 @@ export function createCandidateHandlers({
           currentStage: parsedBody.data.stage,
           expectedRevision: parsedBody.data.expectedRevision,
           clientMutationId: parsedBody.data.clientMutationId,
+          ...(parsedBody.data.compensatesClientMutationId === undefined
+            ? {}
+            : {
+                compensatesClientMutationId:
+                  parsedBody.data.compensatesClientMutationId,
+              }),
         }
         try {
           const result = await repository.commitStageExclusive(
@@ -323,6 +341,16 @@ export function createCandidateHandlers({
               requestId,
               retryable: false,
               safeMessage: '다른 변경이 먼저 반영되었습니다.',
+            })
+          }
+
+          if (result.status === 'undo-not-available') {
+            return errorResponse({
+              status: 409,
+              code: 'UNDO_NOT_AVAILABLE',
+              requestId,
+              retryable: false,
+              safeMessage: '이 단계 변경은 더 이상 되돌릴 수 없습니다.',
             })
           }
 

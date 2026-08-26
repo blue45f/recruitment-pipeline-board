@@ -113,6 +113,101 @@ describe('candidate API client', () => {
     })
   })
 
+  it('보상 reference를 PATCH body에 전달하고 Undo receipt 없는 응답을 보존한다', async () => {
+    const movedCandidate = {
+      ...candidate,
+      currentStage: 'hired' as const,
+      stageChangedAt: '2026-08-26T07:00:00.000Z',
+      revision: candidate.revision + 1,
+    }
+    const compensatedCandidate = {
+      ...movedCandidate,
+      currentStage: candidate.currentStage,
+      stageChangedAt: '2026-08-26T07:01:00.000Z',
+      revision: candidate.revision + 2,
+    }
+    let requestBody: unknown
+
+    server.use(
+      http.patch('*/api/candidates/:candidateId/stage', async ({ request }) => {
+        requestBody = await request.json()
+        return HttpResponse.json({
+          data: compensatedCandidate,
+          meta: {
+            requestId: 'request-compensation',
+            clientMutationId: 'mutation-compensation',
+          },
+        })
+      }),
+    )
+
+    await expect(
+      createTestApi().updateStage(
+        { candidateId: candidate.id },
+        {
+          stage: candidate.currentStage,
+          expectedRevision: movedCandidate.revision,
+          clientMutationId: 'mutation-compensation',
+          compensatesClientMutationId: 'mutation-original',
+        },
+      ),
+    ).resolves.toEqual({
+      data: compensatedCandidate,
+      meta: {
+        requestId: 'request-compensation',
+        clientMutationId: 'mutation-compensation',
+      },
+    })
+    expect(requestBody).toEqual({
+      stage: candidate.currentStage,
+      expectedRevision: movedCandidate.revision,
+      clientMutationId: 'mutation-compensation',
+      compensatesClientMutationId: 'mutation-original',
+    })
+  })
+
+  it('응답 data와 상관관계가 다른 Undo receipt를 캐시 전에 거부한다', async () => {
+    const updatedCandidate = {
+      ...candidate,
+      currentStage: 'hired' as const,
+      stageChangedAt: '2026-08-26T07:00:00.000Z',
+      revision: candidate.revision + 1,
+    }
+    server.use(
+      http.patch('*/api/candidates/:candidateId/stage', () =>
+        HttpResponse.json({
+          data: updatedCandidate,
+          meta: {
+            requestId: 'request-broken-undo-receipt',
+            clientMutationId: 'mutation-broken-undo-receipt',
+            undoReceipt: {
+              candidateId: 'candidate-another',
+              clientMutationId: 'mutation-broken-undo-receipt',
+              previousStage: candidate.currentStage,
+              currentStage: updatedCandidate.currentStage,
+              expectedRevision: candidate.revision,
+              committedRevision: updatedCandidate.revision,
+            },
+          },
+        }),
+      ),
+    )
+
+    const error = await expectApiError(
+      createTestApi().updateStage(
+        { candidateId: candidate.id },
+        {
+          stage: updatedCandidate.currentStage,
+          expectedRevision: candidate.revision,
+          clientMutationId: 'mutation-broken-undo-receipt',
+        },
+      ),
+    )
+
+    expect(error).toMatchObject({ kind: 'schema', retryable: false })
+    expect(error.cause).toBeInstanceOf(ZodError)
+  })
+
   it('상세 응답의 후보자 ID가 요청과 다르면 캐시하기 전에 거부한다', async () => {
     const anotherCandidate = generateCandidateFixtures({
       seed: 43,
@@ -206,6 +301,11 @@ describe('candidate API client', () => {
       'IDEMPOTENCY_KEY_CONFLICT',
       'mutation-idempotency-conflict',
       '같은 요청 식별자가 다른 단계 변경에 사용되었습니다. 다시 시도해 주세요.',
+    ],
+    [
+      'UNDO_NOT_AVAILABLE',
+      'mutation-undo-not-available',
+      '이 단계 변경은 더 이상 되돌릴 수 없습니다. 최신 상태를 확인해 주세요.',
     ],
   ] as const)(
     '409 %s 코드를 보존하되 HTTPError.data의 서버 원문은 노출하지 않는다',

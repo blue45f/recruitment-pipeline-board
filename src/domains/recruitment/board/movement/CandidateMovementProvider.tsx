@@ -13,7 +13,7 @@ import {
   MoveExecutionError,
   createCandidateMovementCoordinator,
   type CandidateMoveCommand,
-  type CandidateMoveResult,
+  type CandidateMovementNotification,
   type CandidateMovementCoordinator,
 } from './CandidateMovementCoordinator'
 import { CandidateMovementContext } from './CandidateMovementContext'
@@ -49,6 +49,14 @@ function normalizeMovementError(error: unknown) {
     })
   }
 
+  if (error.status === 409 && error.code === 'UNDO_NOT_AVAILABLE') {
+    return new MoveExecutionError({
+      cause: error,
+      kind: 'undo-unavailable',
+      safeMessage: error.safeMessage,
+    })
+  }
+
   const hasUnknownOutcome =
     error.kind === 'network' ||
     error.kind === 'timeout' ||
@@ -62,15 +70,36 @@ function normalizeMovementError(error: unknown) {
   })
 }
 
-function notifyMoveResult(result: CandidateMoveResult) {
-  if (result.status !== 'success') {
+function notifyMoveResult(result: CandidateMovementNotification) {
+  if (result.status === 'success') {
+    toast.success(
+      `${result.intent.candidateName} 후보자를 ${CANDIDATE_STAGE_LABELS[result.intent.targetStage]} 단계로 이동했습니다.`,
+      { duration: 8_000 },
+    )
     return
   }
 
-  toast.success(
-    `${result.intent.candidateName} 후보자를 ${CANDIDATE_STAGE_LABELS[result.intent.targetStage]} 단계로 이동했습니다.`,
-    { duration: 8_000 },
-  )
+  if (result.status === 'undo-success') {
+    toast.success(
+      `${result.receipt.candidateName} 후보자를 ${CANDIDATE_STAGE_LABELS[result.receipt.fromStage]} 단계로 되돌렸습니다.`,
+    )
+    return
+  }
+
+  if (result.status === 'undo-failure') {
+    if (result.retryable) return
+
+    toast.error(
+      `${result.receipt.candidateName} 후보자의 실행 취소를 완료하지 못했습니다. ${CANDIDATE_STAGE_LABELS[result.currentStage]} 단계가 유지됩니다. ${result.safeMessage}`,
+    )
+    return
+  }
+
+  if (result.status === 'undo-verification-required') {
+    // The persistent verification notice owns the live announcement and action.
+    // Avoid announcing the same state again from a second live region.
+    return
+  }
 }
 
 function createQueryMovementCoordinator(queryClient: QueryClient) {
@@ -84,11 +113,32 @@ function createQueryMovementCoordinator(queryClient: QueryClient) {
         .execute({
           candidateId: command.candidateId,
           clientMutationId: command.clientMutationId,
+          ...(command.compensatesClientMutationId === undefined
+            ? {}
+            : {
+                compensatesClientMutationId:
+                  command.compensatesClientMutationId,
+              }),
           expectedRevision: command.expectedRevision,
           stage: command.targetStage,
         })
 
-      return response.data
+      const undoReceipt = response.meta.undoReceipt
+
+      return {
+        candidate: response.data,
+        ...(undoReceipt === undefined
+          ? {}
+          : {
+              undoReceipt: {
+                candidateId: undoReceipt.candidateId,
+                clientMutationId: undoReceipt.clientMutationId,
+                committedRevision: undoReceipt.committedRevision,
+                committedStage: undoReceipt.currentStage,
+                previousStage: undoReceipt.previousStage,
+              },
+            }),
+      }
     } catch (error) {
       throw normalizeMovementError(error)
     }

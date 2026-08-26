@@ -17,6 +17,8 @@ const SAFE_MESSAGES = {
   notFound: '지원자를 찾을 수 없습니다.',
   server: '서버가 잠시 불안정합니다. 잠시 후 다시 시도해 주세요.',
   timeout: '응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.',
+  undoNotAvailable:
+    '이 단계 변경은 더 이상 되돌릴 수 없습니다. 최신 상태를 확인해 주세요.',
 } as const
 
 export function requestIdFromHeaders(headers: Headers) {
@@ -46,6 +48,7 @@ function safeHttpMessage(
   if (code === 'IDEMPOTENCY_KEY_CONFLICT') {
     return SAFE_MESSAGES.idempotencyConflict
   }
+  if (code === 'UNDO_NOT_AVAILABLE') return SAFE_MESSAGES.undoNotAvailable
   if (status === 409) return SAFE_MESSAGES.conflict
   if (status === 404) return SAFE_MESSAGES.notFound
   if (status >= 500) return SAFE_MESSAGES.server

@@ -12,6 +12,7 @@ export {
   candidateListSizeSchema,
   candidateStageUpdateRequestSchema,
   candidateStageUpdateResponseSchema,
+  candidateStageUndoReceiptSchema,
   clientMutationIdSchema,
 } from './candidateContracts'
 export type {
@@ -24,6 +25,7 @@ export type {
   CandidateListSize,
   CandidateStageUpdateRequest,
   CandidateStageUpdateResponse,
+  CandidateStageUndoReceipt,
 } from './candidateContracts'
 export {
   CANDIDATE_ROLES,

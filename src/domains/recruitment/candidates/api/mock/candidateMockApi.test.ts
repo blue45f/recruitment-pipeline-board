@@ -62,6 +62,7 @@ async function requestStageUpdate(
   candidate: Candidate,
   stage: CandidateStage,
   clientMutationId: string,
+  compensatesClientMutationId?: string,
 ) {
   return fetch(`${API_ORIGIN}/api/candidates/${candidate.id}/stage`, {
     method: 'PATCH',
@@ -70,6 +71,9 @@ async function requestStageUpdate(
       stage,
       expectedRevision: candidate.revision,
       clientMutationId,
+      ...(compensatesClientMutationId === undefined
+        ? {}
+        : { compensatesClientMutationId }),
     }),
   })
 }
@@ -151,6 +155,14 @@ describe('candidate mock API', () => {
     expect(parsed.meta).toEqual({
       requestId: 'request-1',
       clientMutationId: 'mutation-persist',
+      undoReceipt: {
+        candidateId: candidate.id,
+        clientMutationId: 'mutation-persist',
+        previousStage: candidate.currentStage,
+        currentStage: 'offer_discussion',
+        expectedRevision: candidate.revision,
+        committedRevision: candidate.revision + 1,
+      },
     })
 
     const reloadedRepository = createCandidateMockRepository({ storage })
@@ -258,6 +270,128 @@ describe('candidate mock API', () => {
     expect(repository.getById(candidate.id)?.revision).toBe(
       candidate.revision + 1,
     )
+  })
+
+  it('공개 receipt로 한 번만 보상하고 동일 compensation ID를 같은 응답으로 replay한다', async () => {
+    const { repository } = installTestApi()
+    const candidate = repository.list(200)[0]
+    expect(candidate).toBeDefined()
+    if (candidate === undefined) return
+    const targetStage =
+      candidate.currentStage === 'hired' ? 'interview' : ('hired' as const)
+    const moveResponse = await requestStageUpdate(
+      candidate,
+      targetStage,
+      'mutation-api-compensation-source',
+    )
+    const moveBody = candidateStageUpdateResponseSchema.parse(
+      await moveResponse.json(),
+    )
+    expect(moveBody.meta.undoReceipt).toBeDefined()
+
+    const compensationResponse = await requestStageUpdate(
+      moveBody.data,
+      candidate.currentStage,
+      'mutation-api-compensation',
+      moveBody.meta.clientMutationId,
+    )
+    const compensationBody = candidateStageUpdateResponseSchema.parse(
+      await compensationResponse.json(),
+    )
+    const replayResponse = await requestStageUpdate(
+      moveBody.data,
+      candidate.currentStage,
+      'mutation-api-compensation',
+      moveBody.meta.clientMutationId,
+    )
+    const replayBody = candidateStageUpdateResponseSchema.parse(
+      await replayResponse.json(),
+    )
+
+    expect(compensationResponse.status).toBe(200)
+    expect(compensationBody.data).toMatchObject({
+      currentStage: candidate.currentStage,
+      revision: candidate.revision + 2,
+    })
+    expect(compensationBody.meta.undoReceipt).toBeUndefined()
+    expect(replayResponse.status).toBe(200)
+    expect(replayBody).toEqual(compensationBody)
+
+    const secondCompensation = await requestStageUpdate(
+      moveBody.data,
+      candidate.currentStage,
+      'mutation-api-second-compensation',
+      moveBody.meta.clientMutationId,
+    )
+    expect(secondCompensation.status).toBe(409)
+    await expect(secondCompensation.json()).resolves.toMatchObject({
+      error: { code: 'UNDO_NOT_AVAILABLE', retryable: false },
+    })
+  })
+
+  it('missing 또는 stale receipt 보상을 안전한 UNDO_NOT_AVAILABLE로 매핑한다', async () => {
+    const { repository } = installTestApi()
+    const candidate = repository.list(200)[0]
+    expect(candidate).toBeDefined()
+    if (candidate === undefined) return
+
+    const missingReceiptResponse = await requestStageUpdate(
+      candidate,
+      candidate.currentStage,
+      'mutation-api-missing-compensation',
+      'mutation-api-missing-source',
+    )
+    expect(missingReceiptResponse.status).toBe(409)
+    await expect(missingReceiptResponse.json()).resolves.toMatchObject({
+      error: { code: 'UNDO_NOT_AVAILABLE', retryable: false },
+    })
+
+    const targetStage =
+      candidate.currentStage === 'hired' ? 'interview' : ('hired' as const)
+    const moveResponse = await requestStageUpdate(
+      candidate,
+      targetStage,
+      'mutation-api-stale-source',
+    )
+    const moveBody = candidateStageUpdateResponseSchema.parse(
+      await moveResponse.json(),
+    )
+    const laterResponse = await requestStageUpdate(
+      moveBody.data,
+      targetStage === 'hired' ? 'rejected' : 'hired',
+      'mutation-api-after-source',
+    )
+    expect(laterResponse.status).toBe(200)
+
+    const staleResponse = await requestStageUpdate(
+      moveBody.data,
+      candidate.currentStage,
+      'mutation-api-stale-compensation',
+      moveBody.meta.clientMutationId,
+    )
+    expect(staleResponse.status).toBe(409)
+    await expect(staleResponse.json()).resolves.toMatchObject({
+      error: { code: 'UNDO_NOT_AVAILABLE', retryable: false },
+    })
+  })
+
+  it('보상 요청의 새 ID와 원 ID가 같으면 계약 단계에서 400으로 거부한다', async () => {
+    const { repository } = installTestApi()
+    const candidate = repository.list(200)[0]
+    expect(candidate).toBeDefined()
+    if (candidate === undefined) return
+
+    const response = await requestStageUpdate(
+      candidate,
+      candidate.currentStage,
+      'mutation-api-same-compensation-id',
+      'mutation-api-same-compensation-id',
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'INVALID_REQUEST', retryable: false },
+    })
   })
 
   it('일시 실패 조건보다 기존 idempotency 충돌을 먼저 판정한다', async () => {

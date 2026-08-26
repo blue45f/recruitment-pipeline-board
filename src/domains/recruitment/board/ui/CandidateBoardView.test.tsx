@@ -333,6 +333,51 @@ describe('CandidateBoardView', () => {
     expect(onChangeStage).toHaveBeenCalledWith(firstCandidate)
   })
 
+  it('비활성화된 단계 액션 대신 같은 후보자의 상세 액션을 tab stop으로 유지한다', async () => {
+    const candidates = generateCandidateFixtures({ seed: 42, size: 200 })
+    const candidatesByStage = groupCandidatesByStage(candidates)
+    const candidate = candidatesByStage.document_review[0]
+
+    if (!candidate) {
+      throw new Error('비활성 단계 액션을 검증할 후보자를 찾지 못했습니다.')
+    }
+
+    const commonProps = {
+      candidatesByStage,
+      onChangeStage: vi.fn(),
+      onOpenCandidate: vi.fn(),
+    }
+    const { rerender } = render(<CandidateBoardView {...commonProps} />)
+
+    rerender(
+      <CandidateBoardView
+        {...commonProps}
+        focusRequest={{ candidateId: candidate.id, requestId: 1 }}
+        stageChangeDisabledCandidateIds={new Set([candidate.id])}
+      />,
+    )
+
+    const list = screen.getByRole('list', {
+      name: '서류검토 후보자 40명',
+    })
+    const detailButton = within(list).getByRole('button', {
+      name: new RegExp(`^${candidate.name} 후보자,`),
+    })
+    const stageChangeButton = within(list).getByRole('button', {
+      name: `${candidate.name} 후보자 단계 변경`,
+    })
+
+    await waitFor(() => expect(detailButton).toHaveFocus())
+    expect(detailButton).toHaveAttribute('tabindex', '0')
+    expect(stageChangeButton).toBeDisabled()
+    expect(stageChangeButton).toHaveAttribute('tabindex', '-1')
+    expect(
+      within(list)
+        .getAllByRole('button')
+        .filter((button) => button.tabIndex === 0),
+    ).toEqual([detailButton])
+  })
+
   it('가상 범위 밖 목적 열로 이동한 후보자를 스크롤해 포커스를 복구한다', async () => {
     const candidates = generateCandidateFixtures({
       seed: 20260826,

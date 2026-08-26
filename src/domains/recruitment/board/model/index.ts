@@ -23,6 +23,9 @@ export type {
   CandidateStageMoveFailure,
   CandidateStageMoveVerificationResolution,
   CandidateStageMoveVerificationRequired,
+  CandidateStageUndoResolution,
+  CandidateStageUndoState,
+  CandidateStageUndoSubmission,
 } from './useCandidateStageMove'
 export { useBoardDetailStore } from './useBoardDetailStore'
 export { useBoardPreferencesStore } from './useBoardPreferencesStore'

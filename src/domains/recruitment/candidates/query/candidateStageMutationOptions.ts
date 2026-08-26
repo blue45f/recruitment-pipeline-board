@@ -13,6 +13,7 @@ const STAGE_RESPONSE_SAFE_MESSAGE = '단계 변경 응답을 확인할 수 없�
 export type CandidateStageMutationVariables = Readonly<{
   candidateId: CandidateId
   clientMutationId: string
+  compensatesClientMutationId?: string
   expectedRevision: number
   stage: CandidateStage
 }>
@@ -21,11 +22,23 @@ function validateCorrelatedResponse(
   response: CandidateStageUpdateResponse,
   variables: CandidateStageMutationVariables,
 ) {
+  const undoReceipt = response.meta.undoReceipt
+  const undoReceiptIsMismatched =
+    undoReceipt !== undefined &&
+    (undoReceipt.candidateId !== variables.candidateId ||
+      undoReceipt.clientMutationId !== variables.clientMutationId ||
+      undoReceipt.currentStage !== variables.stage ||
+      undoReceipt.expectedRevision !== variables.expectedRevision ||
+      undoReceipt.committedRevision !== response.data.revision)
+
   if (
     response.data.id !== variables.candidateId ||
     response.data.currentStage !== variables.stage ||
     response.data.revision !== variables.expectedRevision + 1 ||
-    response.meta.clientMutationId !== variables.clientMutationId
+    response.meta.clientMutationId !== variables.clientMutationId ||
+    undoReceiptIsMismatched ||
+    (variables.compensatesClientMutationId !== undefined &&
+      undoReceipt !== undefined)
   ) {
     throw new ApiError({
       kind: 'schema',
@@ -52,6 +65,12 @@ export function candidateStageMutationOptions(
           stage: variables.stage,
           expectedRevision: variables.expectedRevision,
           clientMutationId: variables.clientMutationId,
+          ...(variables.compensatesClientMutationId === undefined
+            ? {}
+            : {
+                compensatesClientMutationId:
+                  variables.compensatesClientMutationId,
+              }),
         },
       )
 

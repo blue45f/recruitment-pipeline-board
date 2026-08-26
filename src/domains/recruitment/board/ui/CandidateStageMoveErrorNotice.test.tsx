@@ -31,6 +31,7 @@ const verification: CandidateStageMoveVerificationRequired = {
   candidateName: candidate.name,
   completedAt: Date.parse('2026-08-27T05:00:00.000Z'),
   intent,
+  intentOrder: 1,
   projectedStage: 'interview',
   safeMessage: '네트워크 연결을 확인해 주세요.',
   status: 'verification-required',

@@ -27,12 +27,15 @@ import {
   type CandidateStageMoveVerificationResolution,
   type CandidateStageMoveVerificationRequired,
   type CandidateStageProjection,
+  type CandidateStageUndoState,
+  type CandidateStageUndoSubmission,
 } from '../model'
 import { CandidateDetailView } from './CandidateDetailView'
 import {
   CandidateStageMoveErrorNotice,
   CandidateStageMoveVerificationNotice,
 } from './CandidateStageMoveErrorNotice'
+import { CandidateStageMoveUndoNotice } from './CandidateStageMoveUndoNotice'
 
 function CandidateDetailSkeleton() {
   return (
@@ -123,11 +126,13 @@ function CandidateDetailContent({
   candidateId,
   onChangeStage,
   pendingCandidateIds,
+  stageChangeDisabledCandidateIds,
   stageProjectionByCandidateId,
 }: Readonly<{
   candidateId: CandidateId
   onChangeStage?: (candidate: Candidate) => void
   pendingCandidateIds: ReadonlySet<CandidateId>
+  stageChangeDisabledCandidateIds: ReadonlySet<CandidateId>
   stageProjectionByCandidateId: CandidateStageProjection
 }>) {
   const { data: response } = useSuspenseQuery(
@@ -148,6 +153,9 @@ function CandidateDetailContent({
           response.data,
           stageProjectionByCandidateId,
         )}
+        isStageChangeDisabled={stageChangeDisabledCandidateIds.has(
+          response.data.id,
+        )}
         isStageChangePending={pendingCandidateIds.has(response.data.id)}
         {...(onChangeStage === undefined ? {} : { onChangeStage })}
       />
@@ -162,6 +170,7 @@ export type CandidateDetailModalProps = Readonly<{
   onVerifyStageMove?: (
     candidateId: CandidateId,
   ) => Promise<CandidateStageMoveVerificationResolution>
+  onUndoStageMove?: () => CandidateStageUndoSubmission
   pendingCandidateIds?: ReadonlySet<CandidateId>
   stageMoveFailureByCandidateId?: ReadonlyMap<
     CandidateId,
@@ -172,6 +181,8 @@ export type CandidateDetailModalProps = Readonly<{
     CandidateStageMoveVerificationRequired
   >
   stageProjectionByCandidateId?: CandidateStageProjection
+  undoPendingCandidateIds?: ReadonlySet<CandidateId>
+  undoState?: CandidateStageUndoState
   verificationPendingCandidateIds?: ReadonlySet<CandidateId>
 }>
 
@@ -191,10 +202,13 @@ export function CandidateDetailModal({
   onChangeStage,
   onRetryStageMove,
   onVerifyStageMove,
+  onUndoStageMove,
   pendingCandidateIds = EMPTY_PENDING_CANDIDATE_IDS,
   stageMoveFailureByCandidateId = EMPTY_STAGE_MOVE_FAILURES,
   stageMoveVerificationByCandidateId = EMPTY_STAGE_MOVE_VERIFICATIONS,
   stageProjectionByCandidateId = EMPTY_STAGE_PROJECTION,
+  undoPendingCandidateIds = EMPTY_PENDING_CANDIDATE_IDS,
+  undoState,
   verificationPendingCandidateIds = EMPTY_PENDING_CANDIDATE_IDS,
 }: CandidateDetailModalProps) {
   const detailPanelRef = useRef<HTMLDivElement>(null)
@@ -210,6 +224,7 @@ export function CandidateDetailModal({
   const stageMoveVerification = selectedCandidateId
     ? stageMoveVerificationByCandidateId.get(selectedCandidateId)
     : undefined
+  const visibleUndoState = selectedCandidateId === null ? undefined : undoState
   const candidateName = queryClient
     .getQueriesData<CandidateListResponse>({
       queryKey: candidateQueryKeys.lists(),
@@ -254,12 +269,54 @@ export function CandidateDetailModal({
     >
       {selectedCandidateId ? (
         <div
-          className="outline-none"
+          aria-label={
+            candidateName
+              ? `${candidateName} 후보자 상세 내용`
+              : '후보자 상세 내용'
+          }
+          className="rounded-xl"
           data-candidate-detail-id={selectedCandidateId}
           data-testid="candidate-detail-content"
           ref={detailPanelRef}
+          role="region"
           tabIndex={-1}
         >
+          {visibleUndoState && onUndoStageMove ? (
+            <div className="mb-5">
+              <CandidateStageMoveUndoNotice
+                candidateName={visibleUndoState.receipt.candidateName}
+                fromStage={visibleUndoState.receipt.fromStage}
+                onAction={(inputMethod) => {
+                  const detailCandidateId = selectedCandidateId
+                  const submission = onUndoStageMove()
+
+                  if (inputMethod !== 'keyboard') return
+
+                  const focusCurrentCandidateDetail = () => {
+                    if (
+                      useBoardDetailStore.getState().selectedCandidateId ===
+                      detailCandidateId
+                    ) {
+                      detailPanelRef.current?.focus({ preventScroll: true })
+                    }
+                  }
+
+                  if (submission.accepted) {
+                    void submission.completion.then(focusCurrentCandidateDetail)
+                    return
+                  }
+
+                  focusCurrentCandidateDetail()
+                }}
+                {...(visibleUndoState.status === 'failure' ||
+                visibleUndoState.status === 'verification-required'
+                  ? { safeMessage: visibleUndoState.safeMessage }
+                  : {})}
+                status={visibleUndoState.status}
+                toStage={visibleUndoState.receipt.toStage}
+              />
+            </div>
+          ) : null}
           {stageMoveFailure && onRetryStageMove ? (
             <div className="mb-5">
               <CandidateStageMoveErrorNotice
@@ -312,6 +369,7 @@ export function CandidateDetailModal({
                     candidateId={selectedCandidateId}
                     {...(onChangeStage === undefined ? {} : { onChangeStage })}
                     pendingCandidateIds={pendingCandidateIds}
+                    stageChangeDisabledCandidateIds={undoPendingCandidateIds}
                     stageProjectionByCandidateId={stageProjectionByCandidateId}
                   />
                 </Suspense>
