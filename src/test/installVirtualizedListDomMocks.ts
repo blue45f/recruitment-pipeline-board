@@ -11,7 +11,9 @@ class ResizeObserverMock implements ResizeObserver {
     this.#callback = callback
   }
 
-  disconnect() {}
+  disconnect() {
+    return undefined
+  }
 
   observe(target: Element) {
     const element = target as HTMLElement
@@ -32,7 +34,9 @@ class ResizeObserverMock implements ResizeObserver {
     )
   }
 
-  unobserve() {}
+  unobserve() {
+    return undefined
+  }
 }
 
 export function installVirtualizedListDomMocks() {
@@ -51,11 +55,11 @@ export function installVirtualizedListDomMocks() {
   const offsetHeightSpy = vi
     .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
     .mockImplementation(function (this: HTMLElement) {
-      if (this.hasAttribute('data-virtualized-candidate-list')) {
+      if (this.dataset.virtualizedCandidateList !== undefined) {
         return VIRTUAL_LIST_HEIGHT
       }
 
-      if (this.getAttribute('role') === 'listitem') {
+      if (this.dataset.virtualizedCandidateItem !== undefined) {
         return VIRTUAL_ITEM_HEIGHT
       }
 
@@ -64,7 +68,7 @@ export function installVirtualizedListDomMocks() {
   const offsetWidthSpy = vi
     .spyOn(HTMLElement.prototype, 'offsetWidth', 'get')
     .mockImplementation(function (this: HTMLElement) {
-      return this.hasAttribute('data-virtualized-candidate-list')
+      return this.dataset.virtualizedCandidateList !== undefined
         ? VIRTUAL_LIST_WIDTH
         : (offsetWidthDescriptor?.get?.call(this) ?? 0)
     })

@@ -93,7 +93,7 @@ export function VirtualizedCandidateList({
   onOpenCandidate,
   onPrefetchCandidate,
 }: VirtualizedCandidateListProps) {
-  const scrollElementRef = useRef<HTMLDivElement>(null)
+  const scrollElementRef = useRef<HTMLUListElement>(null)
   const candidateButtons = useRef(new Map<CandidateId, HTMLButtonElement>())
   const pendingFocusCandidateId = useRef<CandidateId | null>(null)
   const [activeCandidateId, setActiveCandidateId] =
@@ -191,13 +191,18 @@ export function VirtualizedCandidateList({
     const candidateAtScrollOffset = virtualizer.getVirtualItemForOffset(
       scrollElement.scrollTop,
     )
-    const firstVisibleIndex = candidateAtScrollOffset
-      ? Math.min(
-          candidateAtScrollOffset.index +
-            (candidateAtScrollOffset.end <= scrollElement.scrollTop ? 1 : 0),
-          candidates.length - 1,
-        )
-      : 0
+    let firstVisibleIndex = 0
+
+    if (candidateAtScrollOffset) {
+      const nextCandidateOffset =
+        candidateAtScrollOffset.end <= scrollElement.scrollTop ? 1 : 0
+
+      firstVisibleIndex = Math.min(
+        candidateAtScrollOffset.index + nextCandidateOffset,
+        candidates.length - 1,
+      )
+    }
+
     const firstVisibleCandidate = candidates[firstVisibleIndex]
 
     if (
@@ -216,7 +221,9 @@ export function VirtualizedCandidateList({
 
     reconcileTabStopWithViewport()
   }
-  const updateTabStopAfterLeavingList = (event: FocusEvent<HTMLDivElement>) => {
+  const updateTabStopAfterLeavingList = (
+    event: FocusEvent<HTMLUListElement>,
+  ) => {
     const nextFocusedElement = event.relatedTarget
 
     if (
@@ -231,67 +238,66 @@ export function VirtualizedCandidateList({
   }
 
   return (
-    <div
+    <ul
       aria-describedby={descriptionId}
       aria-label={label}
-      className="h-[34rem] [scrollbar-gutter:stable] overflow-x-hidden overflow-y-auto overscroll-contain px-3 [overflow-anchor:none]"
+      className="relative m-0 h-[34rem] [scrollbar-gutter:stable] list-none overflow-x-hidden overflow-y-auto overscroll-contain px-3 [overflow-anchor:none]"
       data-virtualized-candidate-list=""
       onBlurCapture={updateTabStopAfterLeavingList}
       onScroll={updateTabStopAfterScroll}
       ref={scrollElementRef}
-      role="list"
     >
-      <div
-        className="relative w-full"
+      <li
+        aria-hidden="true"
+        className="pointer-events-none w-full"
         style={{ height: virtualizer.getTotalSize() }}
-      >
-        {virtualCandidates.map((virtualCandidate) => {
-          const candidate = candidates[virtualCandidate.index]
+      />
+      {virtualCandidates.map((virtualCandidate) => {
+        const candidate = candidates[virtualCandidate.index]
 
-          if (!candidate) {
-            return null
-          }
+        if (!candidate) {
+          return null
+        }
 
-          return (
-            <div
-              aria-posinset={virtualCandidate.index + 1}
-              aria-setsize={candidates.length}
-              data-index={virtualCandidate.index}
-              key={virtualCandidate.key}
-              ref={virtualizer.measureElement}
-              role="listitem"
-              style={{
-                left: 0,
-                position: 'absolute',
-                top: 0,
-                transform: `translateY(${virtualCandidate.start}px)`,
-                width: '100%',
+        return (
+          <li
+            aria-posinset={virtualCandidate.index + 1}
+            aria-setsize={candidates.length}
+            data-index={virtualCandidate.index}
+            data-virtualized-candidate-item=""
+            key={virtualCandidate.key}
+            ref={virtualizer.measureElement}
+            style={{
+              left: candidateGap,
+              position: 'absolute',
+              right: candidateGap,
+              top: 0,
+              transform: `translateY(${virtualCandidate.start}px)`,
+            }}
+          >
+            <CandidateCard
+              buttonRef={(button) => {
+                if (button) {
+                  candidateButtons.current.set(candidate.id, button)
+                } else {
+                  candidateButtons.current.delete(candidate.id)
+                }
               }}
-            >
-              <CandidateCard
-                buttonRef={(button) => {
-                  if (button) {
-                    candidateButtons.current.set(candidate.id, button)
-                  } else {
-                    candidateButtons.current.delete(candidate.id)
-                  }
-                }}
-                candidate={candidate}
-                {...(candidate.id === resolvedActiveCandidateId
-                  ? { keyboardNavigationDescriptionId: descriptionId }
-                  : {})}
-                onCandidateFocus={setActiveCandidateId}
-                onCandidateKeyDown={moveFocus}
-                onOpenCandidate={openCandidate}
-                {...(onPrefetchCandidate === undefined
-                  ? {}
-                  : { onPrefetchCandidate })}
-                tabIndex={candidate.id === resolvedActiveCandidateId ? 0 : -1}
-              />
-            </div>
-          )
-        })}
-      </div>
-    </div>
+              candidate={candidate}
+              {...(candidate.id === resolvedActiveCandidateId
+                ? { keyboardNavigationDescriptionId: descriptionId }
+                : {})}
+              onCandidateFocus={setActiveCandidateId}
+              onCandidateKeyDown={moveFocus}
+              onOpenCandidate={openCandidate}
+              {...(onPrefetchCandidate === undefined
+                ? {}
+                : { onPrefetchCandidate })}
+              tabIndex={candidate.id === resolvedActiveCandidateId ? 0 : -1}
+            />
+          </li>
+        )
+      })}
+    </ul>
   )
 }

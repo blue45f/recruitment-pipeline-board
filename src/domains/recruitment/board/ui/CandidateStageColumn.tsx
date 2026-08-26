@@ -27,6 +27,8 @@ export function CandidateStageColumn({
   const presentation = CANDIDATE_STAGE_PRESENTATION[stage]
   const headingId = `candidate-stage-${stage}`
   const navigationDescriptionId = `${headingId}-navigation-description`
+  const prefetchCandidateProps =
+    onPrefetchCandidate === undefined ? {} : { onPrefetchCandidate }
 
   return (
     <section
@@ -75,9 +77,7 @@ export function CandidateStageColumn({
           key={scrollResetKey}
           label={`${stageLabel} 후보자 ${candidates.length.toLocaleString('ko-KR')}명`}
           onOpenCandidate={onOpenCandidate}
-          {...(onPrefetchCandidate === undefined
-            ? {}
-            : { onPrefetchCandidate })}
+          {...prefetchCandidateProps}
         />
       )}
     </section>

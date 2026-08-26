@@ -3,6 +3,7 @@ import { visitRecruitmentBoardWithStableMockApi } from '../support/visitRecruitm
 const BOARD_SELECTOR = '[aria-label="채용 단계별 후보자 보드"]'
 const CANDIDATE_SELECTOR = '[data-candidate-id]'
 const VIRTUAL_LIST_SELECTOR = '[data-virtualized-candidate-list]'
+const VIRTUAL_ITEM_SELECTOR = '[data-virtualized-candidate-item]'
 
 function selectThousandCandidates() {
   cy.contains('label', /^표시할 데이터$/)
@@ -21,13 +22,16 @@ function selectThousandCandidates() {
 
 function assertVirtualizedCandidateBudget() {
   cy.get(VIRTUAL_LIST_SELECTOR).should('have.length', 5)
-  cy.get(`${BOARD_SELECTOR} [role="listitem"]`)
+  cy.get(`${BOARD_SELECTOR} ${VIRTUAL_ITEM_SELECTOR}`)
     .its('length')
     .should('be.lte', 60)
   cy.get(VIRTUAL_LIST_SELECTOR).each(($list) => {
-    cy.wrap($list).find('[role="listitem"]').its('length').should('be.lte', 12)
     cy.wrap($list)
-      .find('[role="listitem"]')
+      .find(VIRTUAL_ITEM_SELECTOR)
+      .its('length')
+      .should('be.lte', 12)
+    cy.wrap($list)
+      .find(VIRTUAL_ITEM_SELECTOR)
       .first()
       .should('have.attr', 'aria-setsize', '200')
   })
@@ -50,7 +54,7 @@ describe('virtualized candidate board', () => {
 
     cy.focused()
       .should('match', CANDIDATE_SELECTOR)
-      .closest('[role="listitem"]')
+      .closest(VIRTUAL_ITEM_SELECTOR)
       .should('have.attr', 'aria-posinset', '200')
       .and('have.attr', 'aria-setsize', '200')
 
@@ -95,7 +99,7 @@ describe('virtualized candidate board', () => {
       cy.get<HTMLButtonElement>(`${CANDIDATE_SELECTOR}[tabindex="0"]`)
         .should('have.length', 1)
         .should(($button) => {
-          const listItem = $button.get(0).closest('[role="listitem"]')
+          const listItem = $button.get(0).closest(VIRTUAL_ITEM_SELECTOR)
 
           expect(
             Number(listItem?.getAttribute('aria-posinset')),
@@ -105,7 +109,7 @@ describe('virtualized candidate board', () => {
     cy.press(Cypress.Keyboard.Keys.TAB)
     cy.focused()
       .should('match', CANDIDATE_SELECTOR)
-      .closest('[role="listitem"]')
+      .closest(VIRTUAL_ITEM_SELECTOR)
       .should(($item) => {
         expect(Number($item.attr('aria-posinset'))).to.be.greaterThan(1)
       })
@@ -156,7 +160,7 @@ describe('virtualized candidate board', () => {
     }).should('be.visible')
     cy.get<HTMLElement>(VIRTUAL_LIST_SELECTOR)
       .first()
-      .find('[role="listitem"]')
+      .find(VIRTUAL_ITEM_SELECTOR)
       .should(($items) => {
         expect($items.length).to.be.greaterThan(1)
 

@@ -7,7 +7,9 @@ function waitForCandidateBoard() {
   cy.get('[data-virtualized-candidate-list]')
     .should('have.length', 5)
     .each(($list) => {
-      cy.wrap($list).find('[role="listitem"]').should('not.be.empty')
+      cy.wrap($list)
+        .find('[data-virtualized-candidate-item]')
+        .should('not.be.empty')
     })
 }
 

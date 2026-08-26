@@ -12,7 +12,9 @@ function waitForStableBoard() {
   cy.get('[data-virtualized-candidate-list]')
     .should('have.length', 5)
     .each(($list) => {
-      cy.wrap($list).find('[role="listitem"]').should('not.be.empty')
+      cy.wrap($list)
+        .find('[data-virtualized-candidate-item]')
+        .should('not.be.empty')
     })
   cy.document().then(async (document) => {
     await document.fonts.ready
@@ -37,7 +39,9 @@ function waitForStableBoard() {
   )
   cy.get<HTMLElement>('[data-virtualized-candidate-list]').each(($list) => {
     $list.get(0).scrollTo(0, 0)
-    cy.wrap($list).find('[role="listitem"][aria-posinset="1"]').should('exist')
+    cy.wrap($list)
+      .find('[data-virtualized-candidate-item][aria-posinset="1"]')
+      .should('exist')
   })
 }
 
