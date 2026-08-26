@@ -26,6 +26,7 @@ type Story = StoryObj<typeof meta>
 export const TwoHundredCandidates: Story = {
   args: {
     candidatesByStage: groupCandidatesByStage(candidates),
+    onChangeStage: fn(),
     onOpenCandidate: fn(),
     onPrefetchCandidate: fn(),
   },
@@ -39,6 +40,7 @@ export const TwoHundredCandidates: Story = {
 export const ThousandCandidates: Story = {
   args: {
     candidatesByStage: groupCandidatesByStage(performanceCandidates),
+    onChangeStage: fn(),
     onOpenCandidate: fn(),
     onPrefetchCandidate: fn(),
   },

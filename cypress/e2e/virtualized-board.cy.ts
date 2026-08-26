@@ -12,7 +12,7 @@ function selectThousandCandidates() {
       expect(labelId).to.be.a('string')
       expect(labelId).not.to.equal('')
 
-      cy.get(`[role="combobox"][aria-labelledby="${labelId}"]`).click()
+      cy.get(`[role="combobox"][aria-labelledby~="${labelId}"]`).click()
     })
   cy.contains('[role="option"]', '후보자 1,000명 · 가상 목록').click()
   cy.contains('[role="status"]', '전체 1,000명 중 1,000명을 표시합니다.', {

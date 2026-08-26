@@ -2,7 +2,7 @@ import { vi } from 'vitest'
 
 const VIRTUAL_LIST_HEIGHT = 544
 const VIRTUAL_LIST_WIDTH = 288
-const VIRTUAL_ITEM_HEIGHT = 160
+const VIRTUAL_ITEM_HEIGHT = 224
 
 class ResizeObserverMock implements ResizeObserver {
   readonly #callback: ResizeObserverCallback

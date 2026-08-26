@@ -55,10 +55,14 @@ function DetailModalFrame({ candidate }: Readonly<{ candidate: Candidate }>) {
         >
           <CandidateBoardView
             candidatesByStage={groupCandidatesByStage(candidates)}
+            onChangeStage={fn()}
             onOpenCandidate={openCandidate}
           />
         </section>
-        <CandidateDetailModal fallbackFocusRef={fallbackFocusRef} />
+        <CandidateDetailModal
+          fallbackFocusRef={fallbackFocusRef}
+          onChangeStage={fn()}
+        />
       </main>
     </QueryClientProvider>
   )

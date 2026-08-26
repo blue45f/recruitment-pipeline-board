@@ -1,7 +1,8 @@
-import { BriefcaseBusiness, Mail } from 'lucide-react'
+import { ArrowRightLeft, BriefcaseBusiness, Mail } from 'lucide-react'
 import { useId } from 'react'
 
 import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import {
   CANDIDATE_ROLE_LABELS,
   CANDIDATE_STAGE_LABELS,
@@ -13,9 +14,15 @@ import { formatCandidateDate } from './formatCandidateDate'
 
 export type CandidateDetailViewProps = Readonly<{
   candidate: Candidate
+  isStageChangePending?: boolean
+  onChangeStage?: (candidate: Candidate) => void
 }>
 
-export function CandidateDetailView({ candidate }: CandidateDetailViewProps) {
+export function CandidateDetailView({
+  candidate,
+  isStageChangePending = false,
+  onChangeStage,
+}: CandidateDetailViewProps) {
   const memoHeadingId = useId()
   const stage = CANDIDATE_STAGE_PRESENTATION[candidate.currentStage]
   const stageLabel = CANDIDATE_STAGE_LABELS[candidate.currentStage]
@@ -38,10 +45,27 @@ export function CandidateDetailView({ candidate }: CandidateDetailViewProps) {
             {CANDIDATE_ROLE_LABELS[candidate.role]}
           </p>
         </div>
-        <Badge tone={stage.badgeTone}>
-          <span className="sr-only">현재 단계: </span>
-          {stageLabel}
-        </Badge>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <Badge tone={stage.badgeTone}>
+            <span className="sr-only">현재 단계: </span>
+            {stageLabel}
+          </Badge>
+          {onChangeStage ? (
+            <Button
+              aria-haspopup="dialog"
+              aria-label={`${candidate.name} 후보자 단계 변경`}
+              data-stage-change-candidate-id={candidate.id}
+              loading={isStageChangePending}
+              loadingLabel={`${candidate.name} 후보자 단계 저장 중`}
+              onClick={() => onChangeStage(candidate)}
+              size="sm"
+              variant="secondary"
+            >
+              <ArrowRightLeft aria-hidden="true" className="size-4" />
+              단계 변경
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <dl className="grid gap-x-6 gap-y-5 sm:grid-cols-[minmax(0,2fr)_minmax(8rem,1fr)]">

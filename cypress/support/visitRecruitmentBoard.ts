@@ -4,15 +4,19 @@ import type { CandidateListSize } from '../../src/domains/recruitment/candidates
 type StableMockApiVisitOptions = Readonly<{
   listSize?: CandidateListSize
   rootFontSizePx?: number
+  storageMode?: 'preserve' | 'reset'
 }>
 
 export function visitRecruitmentBoardWithStableMockApi({
   listSize,
   rootFontSizePx,
+  storageMode = 'reset',
 }: StableMockApiVisitOptions = {}) {
   return cy.visit('/', {
     onBeforeLoad(window) {
-      window.localStorage.clear()
+      if (storageMode === 'reset') {
+        window.localStorage.clear()
+      }
 
       if (rootFontSizePx !== undefined) {
         window.document.documentElement.style.fontSize = `${rootFontSizePx}px`

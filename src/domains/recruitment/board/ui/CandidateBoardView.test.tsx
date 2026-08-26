@@ -46,12 +46,14 @@ describe('CandidateBoardView', () => {
   it('다섯 단계와 후보자 카드의 필수 정보를 표시하고 키보드로 상세를 연다', async () => {
     const user = userEvent.setup()
     const candidates = generateCandidateFixtures({ seed: 42, size: 200 })
+    const onChangeStage = vi.fn()
     const onOpenCandidate = vi.fn()
     const onPrefetchCandidate = vi.fn()
 
     render(
       <CandidateBoardView
         candidatesByStage={groupCandidatesByStage(candidates)}
+        onChangeStage={onChangeStage}
         onOpenCandidate={onOpenCandidate}
         onPrefetchCandidate={onPrefetchCandidate}
       />,
@@ -75,6 +77,16 @@ describe('CandidateBoardView', () => {
     expect(renderedItems.length).toBeGreaterThan(0)
     expect(renderedItems.length).toBeLessThan(60)
     expect(renderedItems.every((item) => item.ariaSetSize === '40')).toBe(true)
+    expect(
+      within(board)
+        .getAllByRole('list')
+        .every(
+          (list) =>
+            within(list)
+              .getAllByRole('button')
+              .filter((button) => button.tabIndex === 0).length === 1,
+        ),
+    ).toBe(true)
 
     const firstCandidate = candidates[0]
 
@@ -109,6 +121,31 @@ describe('CandidateBoardView', () => {
     await user.keyboard(' ')
 
     expect(onOpenCandidate).toHaveBeenCalledExactlyOnceWith(firstCandidate.id)
+
+    const stageChangeButton = within(card).getByRole('button', {
+      name: `${firstCandidate.name} 후보자 단계 변경`,
+    })
+
+    expect(stageChangeButton).toHaveAttribute('tabindex', '-1')
+    await user.keyboard('{ArrowRight}')
+
+    expect(stageChangeButton).toHaveFocus()
+    expect(stageChangeButton).toHaveAttribute('tabindex', '0')
+    expect(cardButton).toHaveAttribute('tabindex', '-1')
+    expect(stageChangeButton).toHaveAttribute(
+      'aria-keyshortcuts',
+      'ArrowLeft ArrowRight ArrowUp ArrowDown Home End',
+    )
+
+    await user.keyboard(' ')
+
+    expect(onChangeStage).toHaveBeenCalledExactlyOnceWith(firstCandidate)
+
+    await user.keyboard('{ArrowLeft}')
+
+    expect(cardButton).toHaveFocus()
+    expect(cardButton).toHaveAttribute('tabindex', '0')
+    expect(stageChangeButton).toHaveAttribute('tabindex', '-1')
   })
 
   it('1,000명에서도 보이는 카드만 렌더링하고 End로 마지막 후보자를 연다', async () => {
@@ -130,6 +167,7 @@ describe('CandidateBoardView', () => {
     render(
       <CandidateBoardView
         candidatesByStage={candidatesByStage}
+        onChangeStage={vi.fn()}
         onOpenCandidate={onOpenCandidate}
       />,
     )
@@ -165,7 +203,7 @@ describe('CandidateBoardView', () => {
     expect(onOpenCandidate).toHaveBeenCalledExactlyOnceWith(lastCandidate.id)
   })
 
-  it('화살표와 Home으로 같은 단계의 후보자 포커스를 이동한다', async () => {
+  it('상하 이동은 같은 액션을 유지하고 좌우 이동은 카드 액션을 전환한다', async () => {
     const user = userEvent.setup()
     const candidates = generateCandidateFixtures({ seed: 42, size: 200 })
     const candidatesByStage = groupCandidatesByStage(candidates)
@@ -180,6 +218,7 @@ describe('CandidateBoardView', () => {
     render(
       <CandidateBoardView
         candidatesByStage={candidatesByStage}
+        onChangeStage={vi.fn()}
         onOpenCandidate={vi.fn()}
       />,
     )
@@ -190,10 +229,24 @@ describe('CandidateBoardView', () => {
         .find(
           (button) => button.getAttribute('data-candidate-id') === candidateId,
         )
+    const stageChangeButton = (candidateId: string) =>
+      screen
+        .getAllByRole('button')
+        .find(
+          (button) =>
+            button.getAttribute('data-stage-change-candidate-id') ===
+            candidateId,
+        )
     const firstCandidateButton = candidateButton(firstCandidate.id)
+    const firstStageChangeButton = stageChangeButton(firstCandidate.id)
+    const secondStageChangeButton = stageChangeButton(secondCandidate.id)
 
-    if (!firstCandidateButton) {
-      throw new Error('첫 후보자 버튼을 찾지 못했습니다.')
+    if (
+      !firstCandidateButton ||
+      !firstStageChangeButton ||
+      !secondStageChangeButton
+    ) {
+      throw new Error('키보드 탐색을 검증할 후보자 액션을 찾지 못했습니다.')
     }
 
     firstCandidateButton.focus()
@@ -201,6 +254,22 @@ describe('CandidateBoardView', () => {
     expect(fireEvent.keyDown(firstCandidateButton, { key: 'ArrowUp' })).toBe(
       false,
     )
+    expect(firstCandidateButton).toHaveFocus()
+
+    await user.keyboard('{ArrowRight}')
+
+    expect(firstStageChangeButton).toHaveFocus()
+
+    await user.keyboard('{ArrowDown}')
+
+    expect(secondStageChangeButton).toHaveFocus()
+
+    await user.keyboard('{ArrowUp}')
+
+    expect(firstStageChangeButton).toHaveFocus()
+
+    await user.keyboard('{ArrowLeft}')
+
     expect(firstCandidateButton).toHaveFocus()
 
     await user.keyboard('{ArrowDown}')
@@ -212,12 +281,57 @@ describe('CandidateBoardView', () => {
     expect(firstCandidateButton).toHaveFocus()
   })
 
+  it('단계 변경이 진행 중인 후보자는 상세 액션을 유일한 tab stop으로 유지한다', async () => {
+    const user = userEvent.setup()
+    const candidates = generateCandidateFixtures({ seed: 42, size: 200 })
+    const candidatesByStage = groupCandidatesByStage(candidates)
+    const firstCandidate = candidatesByStage.document_review[0]
+
+    if (!firstCandidate) {
+      throw new Error('진행 중 상태를 검증할 후보자를 찾지 못했습니다.')
+    }
+
+    render(
+      <CandidateBoardView
+        candidatesByStage={candidatesByStage}
+        onChangeStage={vi.fn()}
+        onOpenCandidate={vi.fn()}
+        pendingCandidateIds={new Set([firstCandidate.id])}
+      />,
+    )
+
+    const list = screen.getByRole('list', {
+      name: '서류검토 후보자 40명',
+    })
+    const detailButton = within(list).getByRole('button', {
+      name: new RegExp(`^${firstCandidate.name} 후보자,`),
+    })
+    const stageChangeButton = within(list).getByRole('button', {
+      name: `${firstCandidate.name} 후보자 단계 저장 중`,
+    })
+
+    expect(stageChangeButton).toBeDisabled()
+    expect(detailButton).toHaveAttribute('tabindex', '0')
+    expect(stageChangeButton).toHaveAttribute('tabindex', '-1')
+    expect(
+      within(list)
+        .getAllByRole('button')
+        .filter((button) => button.tabIndex === 0),
+    ).toEqual([detailButton])
+
+    detailButton.focus()
+    await user.keyboard('{ArrowRight}')
+
+    expect(detailButton).toHaveFocus()
+  })
+
   it('검색 조건을 나타내는 key가 바뀔 때 각 단계의 스크롤을 처음으로 돌린다', () => {
     const candidates = generateCandidateFixtures({ seed: 42, size: 200 })
     const candidatesByStage = groupCandidatesByStage(candidates)
     const { rerender } = render(
       <CandidateBoardView
         candidatesByStage={candidatesByStage}
+        onChangeStage={vi.fn()}
         onOpenCandidate={vi.fn()}
         scrollResetKey="all"
       />,
@@ -233,6 +347,7 @@ describe('CandidateBoardView', () => {
     rerender(
       <CandidateBoardView
         candidatesByStage={candidatesByStage}
+        onChangeStage={vi.fn()}
         onOpenCandidate={vi.fn()}
         scrollResetKey="frontend-only"
       />,
@@ -253,6 +368,7 @@ describe('CandidateBoardView', () => {
     render(
       <CandidateBoardView
         candidatesByStage={groupCandidatesByStage(candidates)}
+        onChangeStage={vi.fn()}
         onOpenCandidate={vi.fn()}
       />,
     )
@@ -270,7 +386,7 @@ describe('CandidateBoardView', () => {
 
     await waitFor(() => {
       const nextVisibleTabStop = within(documentReviewList)
-        .getAllByRole('button')
+        .getAllByRole('button', { name: /상세 보기$/ })
         .find((button) => button.tabIndex === 0)
 
       visibleTabStop =
@@ -279,7 +395,11 @@ describe('CandidateBoardView', () => {
           : undefined
       const visibleTabStopItem = within(documentReviewList)
         .getAllByRole('listitem')
-        .find((item) => within(item).queryByRole('button') === visibleTabStop)
+        .find(
+          (item) =>
+            within(item).queryByRole('button', { name: /상세 보기$/ }) ===
+            visibleTabStop,
+        )
 
       expect(visibleTabStop).toBeDefined()
       expect(
@@ -300,6 +420,7 @@ describe('CandidateBoardView', () => {
     render(
       <CandidateBoardView
         candidatesByStage={groupCandidatesByStage(candidates)}
+        onChangeStage={vi.fn()}
         onOpenCandidate={vi.fn()}
       />,
     )
@@ -311,7 +432,7 @@ describe('CandidateBoardView', () => {
       name: '서류검토 후보자 40명',
     })
     const initialTabStop = within(documentReviewList)
-      .getAllByRole('button')
+      .getAllByRole('button', { name: /상세 보기$/ })
       .find((button) => button.tabIndex === 0)
 
     if (!initialTabStop) {
@@ -330,7 +451,7 @@ describe('CandidateBoardView', () => {
 
     await waitFor(() => {
       const nextVisibleTabStop = within(documentReviewList)
-        .getAllByRole('button')
+        .getAllByRole('button', { name: /상세 보기$/ })
         .find((button) => button.tabIndex === 0)
 
       visibleTabStop =
@@ -339,7 +460,11 @@ describe('CandidateBoardView', () => {
           : undefined
       const visibleItem = within(documentReviewList)
         .getAllByRole('listitem')
-        .find((item) => within(item).queryByRole('button') === visibleTabStop)
+        .find(
+          (item) =>
+            within(item).queryByRole('button', { name: /상세 보기$/ }) ===
+            visibleTabStop,
+        )
 
       expect(
         Number(visibleItem?.getAttribute('aria-posinset')),
@@ -367,6 +492,7 @@ describe('CandidateBoardView', () => {
     render(
       <CandidateBoardView
         candidatesByStage={groupCandidatesByStage(candidates)}
+        onChangeStage={vi.fn()}
         onOpenCandidate={vi.fn()}
         onPrefetchCandidate={onPrefetchCandidate}
       />,
