@@ -120,7 +120,7 @@ export default defineConfig([
   },
   {
     files: [
-      '.storybook/**/*.ts',
+      '.storybook/**/*.{ts,tsx}',
       '*.config.{js,mjs,ts}',
       'vite.config.ts',
       'vitest.config.ts',
