@@ -63,3 +63,29 @@
 - 잘못된 ISO 날짜와 이메일, 알 수 없는 단계, 공백 이름, 지원일보다 이른 단계 변경일, 목록 개수 불일치를 실제 스키마 파싱 실패로 확인했다.
 - `Math.random`과 `Date.now`가 호출되면 실패하는 테스트를 추가하고, 같은 seed의 200명 결과가 일치하며 1,000명의 ID와 이메일이 중복되지 않는지 확인했다. 내부 난수 상태가 32비트라는 점을 놓치면 서로 다른 큰 seed가 같은 결과를 만들 수 있어 입력 범위를 `0`부터 `0xffffffff`까지로 제한했다. 전용 Vitest 20개가 통과했다.
 - 첫 Knip 실행은 아직 소비자가 없는 공개 계약을 미사용 export로 판단했고, Zod도 이전의 준비 단계 예외에 남아 있었다. 도메인 `index.ts`를 공개 진입점으로 선언하고 Zod 예외를 제거해 실제 미사용 의존성 검사를 다시 통과시켰다.
+
+## [mock-api] 지연·실패·영속화를 포함한 후보자 API
+
+### 프롬프트 1
+
+> 후보자 목록·상세·단계 변경 Mock API를 설계해줘. 모든 endpoint에 200~800ms 지연과 약 15% 실패를 적용하고, localStorage에 단계 변경을 저장해 새로고침 뒤에도 유지해야 해. `expectedRevision`으로 같은 후보자의 빠른 연속 요청을 보호하되, 테스트에서는 지연·실패·시각·request ID를 주입해 결정적으로 재현할 수 있어야 해. MSW의 브라우저와 Node 환경이 같은 도메인 로직을 안전하게 쓰는 구조, 저장 실패 시 무변경 보장, 400·404·409·503 테스트 관점을 먼저 검토해줘. 아직 Ky 클라이언트와 UI는 포함하지 마.
+
+### 프롬프트 2
+
+> `GET /api/candidates?size=0|200|1000`, `GET /api/candidates/:id`, `PATCH /api/candidates/:id/stage`를 MSW 2로 구현해줘. 초기 원본은 고정 seed의 1,000명으로 유지하고 조회 크기는 응답만 잘라야 하며, 단계 변경 overlay는 버전이 있는 localStorage envelope에 저장해줘. URL 문자열과 body는 기존 Zod 계약으로 엄격히 검증하고 구조화된 오류를 반환해줘. PATCH는 인위적 지연 뒤 최신 revision을 다시 읽어 await 없는 CAS로 처리하고, storage write가 성공한 다음에만 변경을 확정해줘. handler factory에는 storage, latency, failure, clock, request ID를 주입할 수 있게 하고 Node 테스트에서 절대 URL 요청도 가로채도록 해줘.
+
+### AI 출력 요지
+
+- 고정된 1,000명 원본에 단계·변경일·revision만 overlay로 저장하는 repository와 memory/localStorage adapter를 분리했다.
+- 목록·상세·단계 변경 handler를 factory로 만들고 기본 지연과 실패 확률은 유지하면서 테스트에서는 각 효과를 주입할 수 있게 했다.
+- 동일 revision의 요청은 지연이 끝난 뒤 저장소를 다시 읽고 동기적으로 비교·저장해 한 요청만 성공하도록 했다.
+
+### 리뷰 / 검증
+
+- `URLSearchParams`가 항상 문자열을 반환한다는 점을 반영해 `0`, `200`, `1000`만 명시적으로 숫자 계약에 매핑했다. 누락, 중복, `0200`, `200.0` 요청이 400인지 확인했다.
+- 지연 전에 후보자를 읽는 초안은 두 PATCH가 같은 revision을 보고 모두 성공할 수 있어 기각했다. 두 요청을 같은 gate에서 해제한 통합 테스트에서 응답이 정확히 200 하나와 409 하나이고 revision이 한 번만 증가하는지 확인했다.
+- 200명과 1,000명 조회마다 원본을 다시 만들면 이전 변경이 사라질 수 있어 단일 1,000명 원본과 overlay 방식을 채택했다. `size=0` 조회 뒤 새 repository를 만들어도 변경이 유지되는지 검증했다.
+- localStorage write가 실패할 때 캐시를 먼저 바꾸지 않도록 repository를 무상태로 유지했다. 강제 503과 storage write 오류 뒤 단계와 revision이 그대로인지 확인했다.
+- 첫 구현은 storage read 예외와 형식만 유효한 잘못된 overlay가 목록 요청을 깨뜨릴 수 있었다. read 오류는 구조화된 503으로 바꾸고 후보자 계약까지 통과하지 못한 overlay는 무시하도록 보완했다.
+- Node MSW에서 `*/api/...` 패턴으로 절대 URL을 호출했고 전용 통합 테스트 20개가 통과했다. 별도 jsdom 테스트 2개로 새 adapter에서도 localStorage 값이 유지되고 제거되는지 확인했다.
+- 실제 Vite 페이지의 격리된 브라우저 탭에서도 목록 요청이 251ms 뒤 MSW 응답을 받는지 확인했다. 첫 후보자를 PATCH한 뒤 페이지를 새로고침하고 상세 API를 다시 호출해 변경 단계와 증가한 revision이 localStorage에서 복원되는 것을 확인했다.
