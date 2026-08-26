@@ -154,7 +154,7 @@ describe('후보자 도메인 계약', () => {
     ['후보자 ID', { candidateId: 'candidate-another-0001' }],
     ['mutation ID', { clientMutationId: 'mutation-another' }],
     ['현재 단계', { currentStage: 'hired' as const }],
-    ['commit revision', { committedRevision: 3 }],
+    ['commit revision', { expectedRevision: 2, committedRevision: 3 }],
   ])('응답과 상관관계가 다른 Undo receipt의 %s를 거부한다', (_, change) => {
     const response = {
       data: {

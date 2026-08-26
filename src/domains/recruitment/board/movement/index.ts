@@ -19,7 +19,6 @@ export {
   type CandidateUndoFailure,
   type CandidateUndoFailureState,
   type CandidateUndoReceipt,
-  type CandidateUndoResolution,
   type CandidateUndoResult,
   type CandidateUndoState,
   type CandidateUndoSubmission,

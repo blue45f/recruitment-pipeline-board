@@ -30,6 +30,10 @@ function validateCorrelatedResponse(
       undoReceipt.currentStage !== variables.stage ||
       undoReceipt.expectedRevision !== variables.expectedRevision ||
       undoReceipt.committedRevision !== response.data.revision)
+  const undoReceiptPresenceIsInvalid =
+    variables.compensatesClientMutationId === undefined
+      ? undoReceipt === undefined
+      : undoReceipt !== undefined
 
   if (
     response.data.id !== variables.candidateId ||
@@ -37,8 +41,7 @@ function validateCorrelatedResponse(
     response.data.revision !== variables.expectedRevision + 1 ||
     response.meta.clientMutationId !== variables.clientMutationId ||
     undoReceiptIsMismatched ||
-    (variables.compensatesClientMutationId !== undefined &&
-      undoReceipt !== undefined)
+    undoReceiptPresenceIsInvalid
   ) {
     throw new ApiError({
       kind: 'schema',

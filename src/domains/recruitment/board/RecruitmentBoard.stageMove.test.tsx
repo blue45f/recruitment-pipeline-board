@@ -22,11 +22,13 @@ import {
   createMemoryCandidateMockStorage,
   type CandidateMockRepository,
   type CandidateMockStorage,
+  type CandidateStageCommitResult,
 } from '@/domains/recruitment/candidates/api/mock'
 import {
   CANDIDATE_STAGES,
   CANDIDATE_STAGE_LABELS,
   candidateStageUpdateRequestSchema,
+  candidateStageUpdateResponseSchema,
   type Candidate,
   type CandidateStage,
   type CandidateStageUpdateRequest,
@@ -120,6 +122,33 @@ function getFirstCandidate(repository: CandidateMockRepository) {
   }
 
   return candidate
+}
+
+function createStageMoveSuccessResponse(
+  result: Extract<
+    CandidateStageCommitResult,
+    { status: 'updated' | 'replayed' }
+  >,
+) {
+  if (result.receipt.operationKind !== 'move') {
+    throw new Error('일반 단계 이동의 성공 응답만 만들 수 있습니다.')
+  }
+
+  return candidateStageUpdateResponseSchema.parse({
+    data: result.candidate,
+    meta: {
+      requestId: result.receipt.requestId,
+      clientMutationId: result.receipt.clientMutationId,
+      undoReceipt: {
+        candidateId: result.receipt.candidateId,
+        clientMutationId: result.receipt.clientMutationId,
+        previousStage: result.receipt.previousStage,
+        currentStage: result.receipt.currentStage,
+        expectedRevision: result.receipt.expectedRevision,
+        committedRevision: result.candidate.revision,
+      },
+    },
+  })
 }
 
 function expectCandidateInStage(candidate: Candidate, stage: CandidateStage) {
@@ -575,13 +604,7 @@ describe('RecruitmentBoard candidate stage move', () => {
             throw new Error('연속 단계 이동을 확정하지 못했습니다.')
           }
 
-          return HttpResponse.json({
-            data: result.candidate,
-            meta: {
-              clientMutationId: body.clientMutationId,
-              requestId: `move-race-request-${requestIndex + 1}`,
-            },
-          })
+          return HttpResponse.json(createStageMoveSuccessResponse(result))
         },
       ),
     )
@@ -727,24 +750,22 @@ describe('RecruitmentBoard candidate stage move', () => {
 
           await retryGate.promise
 
+          const operationTime = '2026-08-26T12:00:00.000Z'
           const result = repository.commitStage({
             candidateId,
+            clientMutationId: body.clientMutationId,
+            committedAt: operationTime,
             currentStage: body.stage,
             expectedRevision: body.expectedRevision,
-            stageChangedAt: '2026-08-26T12:00:00.000Z',
+            requestId: 'detail-stage-move-retry-success',
+            stageChangedAt: operationTime,
           })
 
           if (result.status !== 'updated') {
             throw new Error('상세 모달 재시도를 확정하지 못했습니다.')
           }
 
-          return HttpResponse.json({
-            data: result.candidate,
-            meta: {
-              clientMutationId: body.clientMutationId,
-              requestId: 'detail-stage-move-retry-success',
-            },
-          })
+          return HttpResponse.json(createStageMoveSuccessResponse(result))
         },
       ),
     )
@@ -867,24 +888,22 @@ describe('RecruitmentBoard candidate stage move', () => {
 
           await secondPatchGate.promise
 
+          const operationTime = '2026-08-26T12:00:00.000Z'
           const result = repository.commitStage({
             candidateId,
+            clientMutationId: body.clientMutationId,
+            committedAt: operationTime,
             currentStage: body.stage,
             expectedRevision: body.expectedRevision,
-            stageChangedAt: '2026-08-26T12:00:00.000Z',
+            requestId: 'isolated-second-success',
+            stageChangedAt: operationTime,
           })
 
           if (result.status !== 'updated') {
             throw new Error('두 번째 후보자 이동을 확정하지 못했습니다.')
           }
 
-          return HttpResponse.json({
-            data: result.candidate,
-            meta: {
-              clientMutationId: body.clientMutationId,
-              requestId: 'isolated-second-success',
-            },
-          })
+          return HttpResponse.json(createStageMoveSuccessResponse(result))
         },
       ),
     )

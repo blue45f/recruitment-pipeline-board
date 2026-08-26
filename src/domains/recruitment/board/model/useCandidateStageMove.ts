@@ -12,7 +12,6 @@ import type {
   CandidateMoveFailure,
   CandidateMoveVerificationResolution,
   CandidateMoveVerificationRequired,
-  CandidateUndoResolution,
   CandidateUndoState,
   CandidateUndoSubmission,
 } from '../movement/CandidateMovementCoordinator'
@@ -22,7 +21,6 @@ export type CandidateStageMoveVerificationRequired =
   CandidateMoveVerificationRequired
 export type CandidateStageMoveVerificationResolution =
   CandidateMoveVerificationResolution
-export type CandidateStageUndoResolution = CandidateUndoResolution
 export type CandidateStageUndoState = CandidateUndoState
 export type CandidateStageUndoSubmission = CandidateUndoSubmission
 

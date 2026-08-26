@@ -225,9 +225,10 @@ describe('CandidateMovementProvider', () => {
       expect.stringContaining(
         '이 단계 변경은 더 이상 되돌릴 수 없습니다. 최신 상태를 확인해 주세요.',
       ),
+      { duration: 8_000 },
     )
-    expect(toastError).not.toHaveBeenCalledWith(
-      expect.stringContaining('untrusted compensation detail'),
+    expect(toastError.mock.calls[0]?.[0]).not.toContain(
+      'untrusted compensation detail',
     )
   })
 

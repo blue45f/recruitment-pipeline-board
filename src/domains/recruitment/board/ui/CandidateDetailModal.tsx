@@ -197,6 +197,59 @@ const EMPTY_STAGE_MOVE_VERIFICATIONS = new Map<
 >()
 const EMPTY_STAGE_PROJECTION: CandidateStageProjection = new Map()
 
+type CandidateDetailUndoNoticeSlotProps = Readonly<{
+  candidateId: CandidateId
+  detailPanelRef: RefObject<HTMLElement | null>
+  onUndoStageMove: (() => CandidateStageUndoSubmission) | undefined
+  undoState: CandidateStageUndoState | undefined
+}>
+
+function CandidateDetailUndoNoticeSlot({
+  candidateId,
+  detailPanelRef,
+  onUndoStageMove,
+  undoState,
+}: CandidateDetailUndoNoticeSlotProps) {
+  if (undoState === undefined || onUndoStageMove === undefined) {
+    return null
+  }
+
+  const safeMessageProps =
+    undoState.status === 'failure' ||
+    undoState.status === 'verification-required'
+      ? { safeMessage: undoState.safeMessage }
+      : {}
+  const focusCurrentCandidateDetail = () => {
+    if (useBoardDetailStore.getState().selectedCandidateId === candidateId) {
+      detailPanelRef.current?.focus({ preventScroll: true })
+    }
+  }
+
+  return (
+    <div className="mb-5">
+      <CandidateStageMoveUndoNotice
+        candidateName={undoState.receipt.candidateName}
+        fromStage={undoState.receipt.fromStage}
+        onAction={(inputMethod) => {
+          const submission = onUndoStageMove()
+
+          if (inputMethod !== 'keyboard') return
+
+          if (submission.accepted) {
+            void submission.completion.then(focusCurrentCandidateDetail)
+            return
+          }
+
+          focusCurrentCandidateDetail()
+        }}
+        {...safeMessageProps}
+        status={undoState.status}
+        toStage={undoState.receipt.toStage}
+      />
+    </div>
+  )
+}
+
 export function CandidateDetailModal({
   fallbackFocusRef,
   onChangeStage,
@@ -211,7 +264,7 @@ export function CandidateDetailModal({
   undoState,
   verificationPendingCandidateIds = EMPTY_PENDING_CANDIDATE_IDS,
 }: CandidateDetailModalProps) {
-  const detailPanelRef = useRef<HTMLDivElement>(null)
+  const detailPanelRef = useRef<HTMLElement>(null)
   const restoreFocusCandidateId = useRef<CandidateId | null>(null)
   const queryClient = useQueryClient()
   const selectedCandidateId = useBoardDetailStore(
@@ -268,7 +321,7 @@ export function CandidateDetailModal({
       title={candidateName ? `${candidateName} 후보자 상세` : '후보자 상세'}
     >
       {selectedCandidateId ? (
-        <div
+        <section
           aria-label={
             candidateName
               ? `${candidateName} 후보자 상세 내용`
@@ -278,45 +331,14 @@ export function CandidateDetailModal({
           data-candidate-detail-id={selectedCandidateId}
           data-testid="candidate-detail-content"
           ref={detailPanelRef}
-          role="region"
           tabIndex={-1}
         >
-          {visibleUndoState && onUndoStageMove ? (
-            <div className="mb-5">
-              <CandidateStageMoveUndoNotice
-                candidateName={visibleUndoState.receipt.candidateName}
-                fromStage={visibleUndoState.receipt.fromStage}
-                onAction={(inputMethod) => {
-                  const detailCandidateId = selectedCandidateId
-                  const submission = onUndoStageMove()
-
-                  if (inputMethod !== 'keyboard') return
-
-                  const focusCurrentCandidateDetail = () => {
-                    if (
-                      useBoardDetailStore.getState().selectedCandidateId ===
-                      detailCandidateId
-                    ) {
-                      detailPanelRef.current?.focus({ preventScroll: true })
-                    }
-                  }
-
-                  if (submission.accepted) {
-                    void submission.completion.then(focusCurrentCandidateDetail)
-                    return
-                  }
-
-                  focusCurrentCandidateDetail()
-                }}
-                {...(visibleUndoState.status === 'failure' ||
-                visibleUndoState.status === 'verification-required'
-                  ? { safeMessage: visibleUndoState.safeMessage }
-                  : {})}
-                status={visibleUndoState.status}
-                toStage={visibleUndoState.receipt.toStage}
-              />
-            </div>
-          ) : null}
+          <CandidateDetailUndoNoticeSlot
+            candidateId={selectedCandidateId}
+            detailPanelRef={detailPanelRef}
+            onUndoStageMove={onUndoStageMove}
+            undoState={visibleUndoState}
+          />
           {stageMoveFailure && onRetryStageMove ? (
             <div className="mb-5">
               <CandidateStageMoveErrorNotice
@@ -376,7 +398,7 @@ export function CandidateDetailModal({
               </ErrorBoundary>
             )}
           </QueryErrorResetBoundary>
-        </div>
+        </section>
       ) : null}
     </Modal>
   )

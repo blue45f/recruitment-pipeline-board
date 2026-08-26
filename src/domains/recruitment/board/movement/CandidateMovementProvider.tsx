@@ -19,6 +19,7 @@ import {
 import { CandidateMovementContext } from './CandidateMovementContext'
 
 const UNKNOWN_MOVE_MESSAGE = '단계 변경 결과를 확인하지 못했습니다.'
+const MOVEMENT_TOAST_DURATION_MS = 8_000
 
 function normalizeMovementError(error: unknown) {
   if (error instanceof MoveExecutionError) {
@@ -74,7 +75,7 @@ function notifyMoveResult(result: CandidateMovementNotification) {
   if (result.status === 'success') {
     toast.success(
       `${result.intent.candidateName} 후보자를 ${CANDIDATE_STAGE_LABELS[result.intent.targetStage]} 단계로 이동했습니다.`,
-      { duration: 8_000 },
+      { duration: MOVEMENT_TOAST_DURATION_MS },
     )
     return
   }
@@ -91,6 +92,7 @@ function notifyMoveResult(result: CandidateMovementNotification) {
 
     toast.error(
       `${result.receipt.candidateName} 후보자의 실행 취소를 완료하지 못했습니다. ${CANDIDATE_STAGE_LABELS[result.currentStage]} 단계가 유지됩니다. ${result.safeMessage}`,
+      { duration: MOVEMENT_TOAST_DURATION_MS },
     )
     return
   }

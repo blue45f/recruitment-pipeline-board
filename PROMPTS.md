@@ -598,3 +598,31 @@
 
 - Undo 상태를 포함한 live URL 검사에서 `표시할 데이터` Select의 화면 문구 `후보자 200명`이 접근 가능한 이름에 없다는 serious `label-content-mismatch` 한 건이 발견됐다. 이전처럼 combobox의 값이 따로 전달된다는 이유로 오탐 처리하지 않고 음성 제어 사용자가 보이는 문구로 컨트롤을 찾을 수 있게 `aria-labelledby`에 라벨과 현재 값 ID를 함께 연결했다.
 - 수정 뒤 Select와 보드 통합 테스트 14개, 타입 검사와 ESLint, production build가 통과했다. 같은 production URL을 AccessLint의 minor 이상 전체 규칙으로 다시 검사해 위반 0건을 확인했다.
+
+## [review-fix] Undo 응답 계약과 CI 경쟁 조건 보완
+
+### 프롬프트 1
+
+> 코드 래빗 리뷰 받은건 너가 확인해서 수정해주고 코드 래빗 뿐 아니라 클로드나 재미나이 리뷰도 함께 받으면서 진행해줘
+
+### 프롬프트 2
+
+> e2e 테스트나 vitest도 추가해줘
+
+### AI 출력 요지
+
+- 일반 단계 이동이 성공하면 검증된 `undoReceipt`가 반드시 포함되고 보상 이동 응답에는 새 receipt가 없어야 한다는 계약을 요청-응답 상관 검증에 반영한다. 응답과 요청의 상관관계를 검사하는 fixture도 의도한 불일치까지 도달하도록 바로잡는다.
+- Cypress가 관찰한 PATCH 본문은 테스트 전용 타입 단언 대신 애플리케이션과 같은 Zod 스키마로 검증한다.
+- SonarCloud의 유지보수 지적은 조건식과 중복 타입, coordinator 제어 흐름, 상세 모달의 Undo 안내 구조를 정리하는 범위에서 반영한다. 후보자별 직렬 처리, 전역 FIFO와 최대 네 건 제한, Undo 409의 no-rebase 동작은 바꾸지 않는다.
+
+### 리뷰 / 검증
+
+- CodeRabbit은 일반 단계 이동 응답에서 `undoReceipt`가 빠져도 성공으로 받아들이는 문제와 응답 상관관계 테스트 fixture가 의도한 검증보다 먼저 receipt 불변 조건에서 실패하는 문제를 지적했다. 일반 이동과 보상 이동의 receipt 존재 조건을 상관 검증에 추가하고 fixture의 expected revision과 committed revision을 함께 조정해 각 테스트가 맡은 계약을 직접 확인하도록 고쳤다.
+- Cypress의 PATCH 관찰 계층은 raw body를 공유 `candidateStageUpdateRequestSchema`로 parse한다. `undefined` 비교 네 곳은 명시적인 Chai assertion으로 정리했다.
+- SonarCloud가 보고한 유지보수 이슈 11건을 현재 코드와 대조했다. 보드의 중첩 조건식, 중복 Undo 결과 alias, optional chain, Undo 409 reconcile의 중복 반환, 상세 모달의 인지 복잡도와 region 시맨틱을 정리했다. 409에서는 최신 확정 후보자만 병합하고 원래 실패를 유지하며 과거 단계나 새 revision으로 보상 요청을 다시 만들지 않는다. `revision-conflict`와 `undo-unavailable`, reconcile 실패와 일반 503을 나눠 회귀 테스트를 보강했다.
+- 첫 원격 Quality 실행은 17개 중 16개가 통과했고 두 번 누른 Undo의 보상 요청 수가 관찰 시점에 0으로 남아 한 시나리오가 실패했다. 최신 실행은 8개 중 6개가 통과했다. 같은 보상 요청 수 실패에 더해 409 오류 문구가 있는 toast 노드를 찾았지만 5초 동안 opacity가 0이라 가시성 assertion이 실패했다.
+- 이 두 경쟁 조건은 보상 요청을 fetch 계층에서 실제로 관찰할 때 resolve되는 Promise를 기다린 뒤 요청 수를 확인하고 Sonner toast 중 `mounted`, `visible`, `removed` lifecycle이 활성 상태인 노드만 선택하도록 고쳤다. 비재시도 Undo 오류 toast의 표시 시간도 8초로 맞췄다.
+- 로컬에서는 관련 Vitest 6개 파일의 69개 테스트가 통과했다. 새 production build로 문제가 있었던 stage-move Cypress spec의 8개 시나리오를 별도로 두 번 연속 실행해 모두 8/8로 통과했다. 이어서 Electron production Cypress 전체 4개 spec의 17개 시나리오도 17/17로 통과했다. 구성은 board layout 3개, detail 2개, stage-move/Undo 8개, virtualized board 4개다. 전체 실행까지 포함하면 stage-move spec은 현재 세 번 연속 통과한 상태다.
+- 리뷰 보완 뒤 처음 실행한 전체 `pnpm check`는 Vitest 266개 중 보드 단계 이동 통합 테스트 2개가 실패했다. 예전 테스트의 성공 PATCH fixture 세 곳에 새 필수 값인 `undoReceipt`가 없어서 coordinator가 응답을 결과 불명으로 분류하고 재전송한 것이 원인이었다. 세 fixture 모두 요청의 mutation ID로 commit하고 공유 응답 스키마를 통과하는 receipt를 만들도록 고친 뒤, 해당 통합 테스트 파일의 6개 테스트가 통과했다.
+- 전체 `pnpm check`를 다시 실행해 format, ESLint, Secretlint, Knip, 타입 검사, production build, Vitest 37개 파일의 266개 테스트와 Storybook build가 모두 통과했다. 커버리지는 statements 91.38%, branches 83.69%, functions 93.83%, lines 93.79%였다.
+- 수정한 최신 head의 CodeRabbit 재리뷰 요청은 rate limit에 걸려 이전 리뷰 이후의 변경까지 검토됐다고 기록하지 않는다. Claude나 Gemini의 별도 응답도 이번 검증 결과에 포함하지 않았다. 최신 원격 Quality, SonarCloud, 시각 비교는 커밋과 push 전이라 아직 실행 결과가 없으므로 완료로 기록하지 않는다.

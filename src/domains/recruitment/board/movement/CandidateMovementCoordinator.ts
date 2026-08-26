@@ -179,13 +179,11 @@ export type CandidateUndoResult =
 export type CandidateMovementNotification =
   CandidateMoveResult | CandidateUndoResult
 
-export type CandidateUndoResolution = CandidateUndoResult
-
 export type CandidateUndoSubmission =
   | Readonly<{
       accepted: true
       candidateId: CandidateId
-      completion: Promise<CandidateUndoResolution>
+      completion: Promise<CandidateUndoResult>
       disposition: 'queued' | 'started'
     }>
   | Readonly<{
@@ -328,9 +326,9 @@ type VerificationRun = Readonly<{
 type UndoRun = Readonly<{
   command: CandidateMoveCommand
   isVerification: boolean
-  promise: Promise<CandidateUndoResolution>
+  promise: Promise<CandidateUndoResult>
   receipt: CandidateUndoReceipt
-  resolve: (resolution: CandidateUndoResolution) => void
+  resolve: (resolution: CandidateUndoResult) => void
   runId: string
 }>
 
@@ -382,9 +380,8 @@ function createUndoRun(
   runId: string,
   isVerification: boolean,
 ): UndoRun {
-  let resolveRun: (resolution: CandidateUndoResolution) => void = () =>
-    undefined
-  const promise = new Promise<CandidateUndoResolution>((resolve) => {
+  let resolveRun: (resolution: CandidateUndoResult) => void = () => undefined
+  const promise = new Promise<CandidateUndoResult>((resolve) => {
     resolveRun = resolve
   })
 
@@ -1123,8 +1120,7 @@ export class CandidateMovementCoordinator {
     this.deferredUndoReceipt = undefined
 
     if (
-      receipt === undefined ||
-      receipt.intentOrder !== this.latestForwardIntentOrder ||
+      receipt?.intentOrder !== this.latestForwardIntentOrder ||
       !this.receiptMatchesCandidate(
         receipt,
         this.readConfirmedCandidate(receipt.candidateId),
@@ -1571,22 +1567,20 @@ export class CandidateMovementCoordinator {
     command: CandidateMoveCommand,
   ): Promise<OperationOutcome> {
     const outcome = await this.attemptCommand(command)
+    const shouldReconcileFailedUndo =
+      outcome.status === 'failure' &&
+      (outcome.error.kind === 'revision-conflict' ||
+        outcome.error.kind === 'undo-unavailable')
 
-    if (
-      outcome.status !== 'failure' ||
-      (outcome.error.kind !== 'revision-conflict' &&
-        outcome.error.kind !== 'undo-unavailable')
-    ) {
-      return outcome
-    }
-
-    try {
-      this.acceptConfirmedCandidate(
-        await this.adapters.reconcile(command.candidateId),
-      )
-    } catch {
-      // The fixed-revision compensation remains failed. A best-effort read is
-      // only used to show the newest confirmed stage and never to rebase Undo.
+    if (shouldReconcileFailedUndo) {
+      try {
+        this.acceptConfirmedCandidate(
+          await this.adapters.reconcile(command.candidateId),
+        )
+      } catch {
+        // The fixed-revision compensation remains failed. A best-effort read is
+        // only used to show the newest confirmed stage and never to rebase Undo.
+      }
     }
 
     return outcome

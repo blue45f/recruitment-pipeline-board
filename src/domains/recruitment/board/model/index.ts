@@ -23,7 +23,6 @@ export type {
   CandidateStageMoveFailure,
   CandidateStageMoveVerificationResolution,
   CandidateStageMoveVerificationRequired,
-  CandidateStageUndoResolution,
   CandidateStageUndoState,
   CandidateStageUndoSubmission,
 } from './useCandidateStageMove'

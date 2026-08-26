@@ -216,6 +216,11 @@ export function RecruitmentBoard() {
     undoState?.status === 'verification-required'
       ? new Set([...undoPendingCandidateIds, undoState.receipt.candidateId])
       : undoPendingCandidateIds
+  const boardUndoSafeMessageProps =
+    undoState?.status === 'failure' ||
+    undoState?.status === 'verification-required'
+      ? { safeMessage: undoState.safeMessage }
+      : {}
 
   return (
     <main className="min-h-svh bg-[var(--color-surface)] px-3 py-3 text-[var(--color-ink)] sm:px-5 sm:py-5 lg:px-7">
@@ -271,10 +276,7 @@ export function RecruitmentBoard() {
                 candidateName={undoState.receipt.candidateName}
                 fromStage={undoState.receipt.fromStage}
                 onAction={undoLatestFromBoard}
-                {...(undoState.status === 'failure' ||
-                undoState.status === 'verification-required'
-                  ? { safeMessage: undoState.safeMessage }
-                  : {})}
+                {...boardUndoSafeMessageProps}
                 status={undoState.status}
                 toStage={undoState.receipt.toStage}
               />

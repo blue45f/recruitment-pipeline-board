@@ -101,6 +101,16 @@ const mismatchedResponses = [
       },
     }),
   ],
+  [
+    'Undo receipt 누락',
+    (response: CandidateStageUpdateResponse) => ({
+      ...response,
+      meta: {
+        clientMutationId: response.meta.clientMutationId,
+        requestId: response.meta.requestId,
+      },
+    }),
+  ],
 ] as const satisfies readonly (readonly [
   string,
   (response: CandidateStageUpdateResponse) => CandidateStageUpdateResponse,

@@ -1,4 +1,8 @@
 import { visitRecruitmentBoardWithStableMockApi } from '../support/visitRecruitmentBoard'
+import {
+  candidateStageUpdateRequestSchema,
+  type CandidateStageUpdateRequest,
+} from '../../src/domains/recruitment/candidates/model'
 
 const SOURCE_STAGE_SELECTOR =
   'section[aria-labelledby="candidate-stage-document_review"]'
@@ -7,12 +11,7 @@ const TARGET_STAGE_SELECTOR =
 const FINAL_STAGE_SELECTOR =
   'section[aria-labelledby="candidate-stage-offer_discussion"]'
 
-type StagePatchBody = Readonly<{
-  clientMutationId: string
-  compensatesClientMutationId?: string
-  expectedRevision: number
-  stage: string
-}>
+type StagePatchBody = CandidateStageUpdateRequest
 
 type MovedCandidate = Readonly<{
   candidateId: string
@@ -24,9 +23,7 @@ const SAFE_SERVER_ERROR_MESSAGE =
   '서버가 잠시 불안정합니다. 잠시 후 다시 시도해 주세요.'
 
 function stagePatchBody(rawBody: unknown): StagePatchBody {
-  expect(rawBody).to.be.an('object')
-
-  return rawBody as StagePatchBody
+  return candidateStageUpdateRequestSchema.parse(rawBody)
 }
 
 function moveFirstDocumentReviewCandidateToInterview(): Cypress.Chainable<MovedCandidate> {
@@ -63,7 +60,7 @@ function moveFirstDocumentReviewCandidateToInterview(): Cypress.Chainable<MovedC
       return cy.contains('[role="dialog"] button', /^변경하기$/).click()
     })
     .then(() => {
-      expect(movedCandidate).not.to.equal(undefined)
+      assert.isDefined(movedCandidate)
 
       return movedCandidate as MovedCandidate
     })
@@ -539,10 +536,8 @@ describe('candidate stage move', () => {
       )
     })
     cy.get('[data-undo-status="pending"]').should(() => {
-      expect(forwardBody, 'forward PATCH body').not.to.equal(undefined)
-      expect(compensationBody, 'compensation PATCH body').not.to.equal(
-        undefined,
-      )
+      assert.isDefined(forwardBody, 'forward PATCH body')
+      assert.isDefined(compensationBody, 'compensation PATCH body')
       expect(compensationRequestCount, 'compensation PATCH count').to.equal(1)
       expect(compensationBody, 'compensation PATCH contract').to.include({
         compensatesClientMutationId: forwardBody?.clientMutationId,
@@ -675,7 +670,11 @@ describe('candidate stage move', () => {
   it('거의 동시에 Undo를 두 번 활성화해도 보상 요청은 한 번만 보낸다', () => {
     cy.viewport(1440, 900)
     let compensationRequestCount = 0
+    let markCompensationRequestObserved = () => undefined
     let releaseCompensationResponse = () => undefined
+    const compensationRequestObserved = new Cypress.Promise<void>((resolve) => {
+      markCompensationRequestObserved = resolve
+    })
     const compensationResponseGate = new Cypress.Promise<void>((resolve) => {
       releaseCompensationResponse = resolve
     })
@@ -684,6 +683,7 @@ describe('candidate stage move', () => {
       if (body.compensatesClientMutationId === undefined) return proceed()
 
       compensationRequestCount += 1
+      markCompensationRequestObserved()
 
       await compensationResponseGate
 
@@ -696,14 +696,15 @@ describe('candidate stage move', () => {
         getAvailableUndoAction(candidateName).then(($button) => {
           const button = $button.get(0)
 
-          expect(button).not.to.equal(undefined)
-          button?.click()
-          button?.click()
+          assert.isDefined(button)
+          button.click()
+          button.click()
         })
       },
     )
 
     cy.get('[data-undo-status="pending"]').should('be.visible')
+    cy.wrap(compensationRequestObserved)
     cy.then(() => expect(compensationRequestCount).to.equal(1))
     cy.then(() => releaseCompensationResponse())
 
@@ -755,9 +756,9 @@ describe('candidate stage move', () => {
 
     cy.get('@staleUndoCandidateName').then((candidateName) => {
       cy.contains(
-        '[data-sonner-toast]',
+        '[data-sonner-toast][data-type="error"][data-mounted="true"][data-visible="true"][data-removed="false"]',
         `${String(candidateName)} 후보자의 실행 취소를 완료하지 못했습니다. 면접 단계가 유지됩니다.`,
-        { timeout: 5_000 },
+        { timeout: 7_000 },
       )
         .should('be.visible')
         .and('not.contain.text', 'internal stale receipt detail')

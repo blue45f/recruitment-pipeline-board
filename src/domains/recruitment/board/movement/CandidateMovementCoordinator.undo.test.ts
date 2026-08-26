@@ -641,8 +641,56 @@ describe('CandidateMovementCoordinator Undo recovery', () => {
     })
   })
 
-  it('Undo 409는 최신 후보자를 병합하되 과거 단계로 rebase하지 않는다', async () => {
-    const candidate = createCandidate('candidate-conflict' as CandidateId)
+  it.each(['revision-conflict', 'undo-unavailable'] as const)(
+    'Undo %s는 최신 후보자를 병합하되 과거 단계로 rebase하지 않는다',
+    async (kind) => {
+      const candidate = createCandidate(
+        `candidate-conflict-${kind}` as CandidateId,
+      )
+      const harness = createUndoHarness([candidate])
+
+      submitInterview(harness.coordinator, candidate)
+      harness.resolveExecution(0)
+      await vi.waitFor(() => {
+        expect(harness.coordinator.getSnapshot().undoState?.status).toBe(
+          'available',
+        )
+      })
+
+      const undo = harness.coordinator.undoLatest()
+
+      harness.confirmed.set(
+        candidate.id,
+        createCandidate(candidate.id, 'hired', 2),
+      )
+      harness.executions[1]?.deferred.reject(
+        new MoveExecutionError({
+          kind,
+          safeMessage: '이 이동은 더 이상 되돌릴 수 없습니다.',
+        }),
+      )
+
+      if (!undo.accepted) {
+        throw new Error('실행 취소가 접수되지 않았습니다.')
+      }
+
+      await expect(undo.completion).resolves.toMatchObject({
+        currentStage: 'hired',
+        kind,
+        retryable: false,
+        safeMessage: '이 이동은 더 이상 되돌릴 수 없습니다.',
+        status: 'undo-failure',
+      })
+      expect(harness.execute).toHaveBeenCalledTimes(2)
+      expect(harness.reconcile).toHaveBeenCalledOnce()
+      expect(harness.coordinator.getSnapshot().undoState).toBeUndefined()
+    },
+  )
+
+  it('Undo 충돌 뒤 최신 상태 조회가 실패해도 원래 실패를 보존하고 permit을 반환한다', async () => {
+    const candidate = createCandidate(
+      'candidate-reconcile-failure' as CandidateId,
+    )
     const harness = createUndoHarness([candidate])
 
     submitInterview(harness.coordinator, candidate)
@@ -655,14 +703,11 @@ describe('CandidateMovementCoordinator Undo recovery', () => {
 
     const undo = harness.coordinator.undoLatest()
 
-    harness.confirmed.set(
-      candidate.id,
-      createCandidate(candidate.id, 'hired', 2),
-    )
+    harness.reconcile.mockRejectedValueOnce(new Error('reconcile unavailable'))
     harness.executions[1]?.deferred.reject(
       new MoveExecutionError({
         kind: 'undo-unavailable',
-        safeMessage: '이 이동은 더 이상 되돌릴 수 없습니다.',
+        safeMessage: '원래 보상 실패입니다.',
       }),
     )
 
@@ -671,13 +716,15 @@ describe('CandidateMovementCoordinator Undo recovery', () => {
     }
 
     await expect(undo.completion).resolves.toMatchObject({
-      currentStage: 'hired',
-      retryable: false,
+      currentStage: 'interview',
+      kind: 'undo-unavailable',
+      safeMessage: '원래 보상 실패입니다.',
       status: 'undo-failure',
     })
-    expect(harness.execute).toHaveBeenCalledTimes(2)
     expect(harness.reconcile).toHaveBeenCalledOnce()
-    expect(harness.coordinator.getSnapshot().undoState).toBeUndefined()
+    expect(harness.execute).toHaveBeenCalledTimes(2)
+    expect(harness.getActiveExecutionCount()).toBe(0)
+    expect(harness.coordinator.getInFlightCount()).toBe(0)
   })
 
   it('명시적 실패는 투영을 롤백하고 같은 receipt로 새 보상을 재시도한다', async () => {
@@ -709,6 +756,7 @@ describe('CandidateMovementCoordinator Undo recovery', () => {
       retryable: true,
       status: 'undo-failure',
     })
+    expect(harness.reconcile).not.toHaveBeenCalled()
     expect(harness.coordinator.getSnapshot().undoState).toMatchObject({
       status: 'failure',
     })
