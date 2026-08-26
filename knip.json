@@ -5,7 +5,6 @@
     "@hookform/resolvers",
     "@secretlint/secretlint-rule-preset-recommend",
     "@tanstack/react-virtual",
-    "ky",
     "react-hook-form",
     "web-vitals",
     "zustand"

@@ -1,5 +1,10 @@
 import { setupWorker } from 'msw/browser'
 
-import { handlers } from '@/mocks/handlers'
+import { createBrowserCandidateMockStorage } from '@/domains/recruitment/candidates/api/mock'
+import { createHandlers } from '@/mocks/handlers'
 
-export const worker = setupWorker(...handlers)
+const browserMockApi = createHandlers({
+  storage: createBrowserCandidateMockStorage(),
+})
+
+export const worker = setupWorker(...browserMockApi.handlers)

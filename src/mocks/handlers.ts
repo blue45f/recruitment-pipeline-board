@@ -1,3 +1,18 @@
-import type { RequestHandler } from 'msw'
+import {
+  createCandidateHandlers,
+  createCandidateMockRepository,
+  type CandidateMockStorage,
+} from '@/domains/recruitment/candidates/api/mock'
 
-export const handlers: RequestHandler[] = []
+type CreateHandlersOptions = {
+  storage: CandidateMockStorage
+}
+
+export function createHandlers({ storage }: CreateHandlersOptions) {
+  const repository = createCandidateMockRepository({ storage })
+
+  return {
+    handlers: createCandidateHandlers({ repository }),
+    reset: () => repository.reset(),
+  }
+}
