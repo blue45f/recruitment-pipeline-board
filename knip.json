@@ -1,6 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/domains/**/index.ts"],
+  "entry": [
+    "cypress.visual.config.ts",
+    "cypress/support/visual.ts",
+    "cypress/visual/**/*.cy.ts",
+    "src/domains/**/index.ts"
+  ],
   "ignoreDependencies": [
     "@secretlint/secretlint-rule-preset-recommend",
     "@tanstack/react-virtual",

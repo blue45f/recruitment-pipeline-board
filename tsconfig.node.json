@@ -29,6 +29,7 @@
     ".storybook/*.ts",
     "commitlint.config.js",
     "cypress.config.ts",
+    "cypress.visual.config.ts",
     "vite.config.ts",
     "vitest.config.ts"
   ]

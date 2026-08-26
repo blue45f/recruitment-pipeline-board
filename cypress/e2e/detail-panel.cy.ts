@@ -1,24 +1,9 @@
-function visitWithStableMockApi() {
-  cy.visit('/', {
-    onBeforeLoad(window) {
-      Object.defineProperty(window.crypto, 'getRandomValues', {
-        configurable: true,
-        value<T extends ArrayBufferView | null>(values: T) {
-          if (values !== null) {
-            Reflect.set(values, 0, 0xffffffff)
-          }
-
-          return values
-        },
-      })
-    },
-  })
-}
+import { visitRecruitmentBoardWithStableMockApi } from '../support/visitRecruitmentBoard'
 
 describe('candidate detail panel', () => {
   it('상세를 열고 접근성 검사를 통과한 뒤 원래 카드로 돌아간다', () => {
     cy.viewport(1440, 900)
-    visitWithStableMockApi()
+    visitRecruitmentBoardWithStableMockApi()
 
     cy.get<HTMLButtonElement>('[data-candidate-id]')
       .first()
@@ -46,7 +31,6 @@ describe('candidate detail panel', () => {
 
         cy.injectAxe()
         cy.checkA11y('[role="dialog"]')
-        cy.screenshot('detail-panel/desktop')
         cy.get('body').type('{esc}')
         cy.get('[role="dialog"]').should('not.exist')
         cy.focused()
@@ -57,7 +41,7 @@ describe('candidate detail panel', () => {
 
   it('모바일에서 문서와 상세 패널에 가로 넘침을 만들지 않는다', () => {
     cy.viewport(390, 844)
-    visitWithStableMockApi()
+    visitRecruitmentBoardWithStableMockApi()
 
     cy.get<HTMLButtonElement>('[data-candidate-id]').first().click()
     cy.get('[role="dialog"] [aria-label$="후보자 상세 정보"]', {
@@ -79,6 +63,5 @@ describe('candidate detail panel', () => {
       expect(width).to.be.at.least(44)
       expect(height).to.be.at.least(44)
     })
-    cy.screenshot('detail-panel/mobile')
   })
 })

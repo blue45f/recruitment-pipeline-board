@@ -306,3 +306,50 @@
 - 전체 `pnpm check`에서 format, ESLint, Secretlint, Knip, 타입 검사, production build, Vitest 23개 파일의 111개 테스트와 Storybook build가 통과했다. 전체 Cypress는 기존 보드 2개와 상세 2개를 합친 4개 시나리오가 모두 통과했다.
 - PR Quality의 Linux Electron에서는 모바일 문서의 `scrollWidth`와 `clientWidth`가 375px과 390px로 달라 두 overflow 검증이 실패했다. 두 값이 항상 같다는 환경 의존 가정을 제거하고, `scrollWidth`가 `documentElement.clientWidth`를 넘지 않는지 확인하도록 수정했다. CodeRabbit 의견 중 반대 방향의 15px overflow 해석은 Chai 오류의 actual·expected 순서와 수정 뒤 CI 결과를 대조해 적용하지 않았다.
 - 첫 커밋 시도는 제목이 대문자 `CI`로 시작해 Commitlint의 `subject-case` 규칙에 거부됐고 커밋은 생성되지 않았다. 제목을 한글 중심으로 고쳐 같은 변경을 다시 커밋했다.
+
+## [visual-regression] 화면 기준선 비교
+
+### 프롬프트 1
+
+> 중간중간 시각적 회귀테스트도 포함시켜서 디자인 등도 개선해줘
+
+### 프롬프트 2
+
+> 전체적으로 정렬 잘 확인해줘
+
+### AI 출력 요지
+
+- 기능 E2E와 시각 비교의 실패 원인을 구분할 수 있도록 Cypress 설정과 CI 작업을 분리했다.
+- 보드와 상세 화면을 1,440×900, 390×844에서 각각 캡처해 네 개의 기준 화면으로 관리한다.
+- 같은 화면이 매번 같은 픽셀로 나오도록 후보자 데이터, 브라우저, 글꼴, viewport, 스크롤 위치, 애니메이션과 포커스 상태를 고정했다.
+
+### 리뷰 / 검증
+
+- 첫 Linux 산출물에서 한글이 네모로 표시돼 기준선 승인을 보류했다. Noto CJK의 고정 버전을 설치한 뒤 네 화면의 한글, 필터 정렬, 카드와 상세 모달을 다시 확인했다.
+- 같은 CI 환경에서 두 번 만든 네 이미지의 SHA-256이 모두 같았다. 1,440×900 두 장과 390×844 두 장의 크기와 PNG 무결성을 확인하고 Cypress가 실패하며 별도로 남긴 이미지는 기준선에서 제외했다.
+- SonarCloud가 가변 Action 참조와 Cypress 설치 명령을 보안 문제로 표시했다. Action은 commit SHA, 컨테이너는 digest로 고정하고 lifecycle script를 끈 상태에서 lockfile의 Cypress 실행 파일만 직접 호출하도록 고쳤다.
+- `pnpm check`에서 format, ESLint, Secretlint, Knip, 타입 검사, production build, Vitest 23개 파일의 111개 테스트와 Storybook build가 통과했다.
+- GitHub Actions run 32963479784에서 일반 Cypress 4개와 시각 비교 4개가 모두 통과했다. 시각 비교의 불일치 허용 비율은 0이며 diff 산출물은 생성되지 않았다. SonarCloud Quality Gate도 통과했다.
+
+## [review-fix] 시각 회귀 CI와 코드 리뷰 보완
+
+### 프롬프트 1
+
+> 코드 래빗 리뷰 받은건 너가 확인해서 수정해주고 코드 래빗 뿐 아니라 클로드나 재미나이 리뷰도 함께 받으면서 진행해줘
+
+### 프롬프트 2
+
+> 적절한 타이밍에 mr 머지 진행해줘
+
+### AI 출력 요지
+
+- 병합 전에 최신 커밋의 Quality, SonarCloud, 시각 비교와 CodeRabbit 전체 리뷰를 모두 확인하는 게이트를 적용했다.
+- 일반 Cypress와 시각 비교에서 중복하던 안정화 방문 로직을 공용 helper로 옮기고, 모든 브라우저 테스트가 Mock API의 15% 실패 확률에 영향을 받지 않게 했다.
+- 두 checkout의 자격 증명 보존을 끄고 픽셀 색상 임계값, 불일치 허용 비율과 안티앨리어싱 비교를 모두 가장 엄격한 값으로 맞췄다.
+
+### 리뷰 / 검증
+
+- 문서 커밋 뒤 GitHub Actions run 32964125402에서 일반 Cypress 4개 중 모바일 보드 한 개가 실패했다. 해당 테스트만 안정화 방문 함수를 쓰지 않아 Mock API의 무작위 503을 받을 수 있었고, 실제 로그에서도 보드가 끝내 나타나지 않았다.
+- 단순 재실행이나 timeout 연장 대신 localStorage 초기화와 Web Crypto 고정을 하나의 helper로 합쳤다. 보드 테스트를 세 번 연속 실행해 6개 검사가 모두 통과했고 전체 Cypress 4개도 다시 통과했다.
+- CodeRabbit 전체 리뷰의 두 의견을 직접 확인해 checkout 자격 증명 제거와 엄격한 픽셀 비교를 모두 반영했다. 별도 읽기 전용 diff 리뷰에서도 보완 변경을 막을 P0~P3 항목은 없었다.
+- `pnpm check`에서 format, ESLint, Secretlint, Knip, 타입 검사, production build, Vitest 23개 파일의 111개 테스트와 Storybook build가 통과했다. 보완한 원격 커밋의 Quality와 시각 비교 결과를 확인하기 전에는 병합하지 않는다.
