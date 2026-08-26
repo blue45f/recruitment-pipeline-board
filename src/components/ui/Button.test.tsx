@@ -21,7 +21,7 @@ describe('Button', () => {
 
   it('asChild를 사용하면 자식 요소의 의미와 속성을 유지한다', () => {
     render(
-      <Button asChild variant="secondary">
+      <Button aria-busy asChild variant="secondary">
         <a href="/candidates">후보자 목록 열기</a>
       </Button>,
     )
@@ -29,6 +29,7 @@ describe('Button', () => {
     const link = screen.getByRole('link', { name: '후보자 목록 열기' })
 
     expect(link).toHaveAttribute('href', '/candidates')
+    expect(link).toHaveAttribute('aria-busy', 'true')
     expect(
       screen.queryByRole('button', { name: '후보자 목록 열기' }),
     ).not.toBeInTheDocument()
@@ -56,5 +57,27 @@ describe('Button', () => {
     expect(button).toHaveAttribute('aria-busy', 'true')
     await user.click(button)
     expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('busy 상태만 전달하면 실행을 막지 않고 현재 상태를 알린다', async () => {
+    const user = userEvent.setup()
+    const handleClick = vi.fn()
+
+    render(
+      <Button aria-busy onClick={handleClick}>
+        저장 중 · 다시 변경
+      </Button>,
+    )
+
+    const button = screen.getByRole('button', {
+      name: '저장 중 · 다시 변경',
+    })
+
+    expect(button).toBeEnabled()
+    expect(button).toHaveAttribute('aria-busy', 'true')
+
+    await user.click(button)
+
+    expect(handleClick).toHaveBeenCalledOnce()
   })
 })

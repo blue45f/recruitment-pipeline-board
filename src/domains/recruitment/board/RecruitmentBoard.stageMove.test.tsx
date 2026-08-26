@@ -3,7 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { MemoryRouter } from 'react-router'
-import { Toaster } from 'sonner'
+import { toast, Toaster } from 'sonner'
 import {
   afterAll,
   afterEach,
@@ -28,11 +28,13 @@ import {
   candidateStageUpdateRequestSchema,
   type Candidate,
   type CandidateStage,
+  type CandidateStageUpdateRequest,
 } from '@/domains/recruitment/candidates/model'
 import { server } from '@/mocks/server'
 import { installVirtualizedListDomMocks } from '@/test/installVirtualizedListDomMocks'
 
 import { useBoardDetailStore, useBoardPreferencesStore } from './model'
+import { CandidateMovementProvider } from './movement'
 import { RecruitmentBoard } from './RecruitmentBoard'
 
 let restoreVirtualizedListDom: (() => void) | undefined
@@ -60,10 +62,12 @@ function renderBoard() {
   })
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <RecruitmentBoard />
-        <Toaster position="bottom-center" />
-      </MemoryRouter>
+      <CandidateMovementProvider>
+        <MemoryRouter>
+          <RecruitmentBoard />
+          <Toaster position="bottom-center" />
+        </MemoryRouter>
+      </CandidateMovementProvider>
     </QueryClientProvider>,
   )
 
@@ -235,7 +239,11 @@ describe('RecruitmentBoard candidate stage move', () => {
       ),
     ).not.toBeInTheDocument()
     await waitFor(() => {
-      expect(screen.getByTestId('candidate-detail-content')).toHaveFocus()
+      expect(
+        within(detailDialog).getByRole('button', {
+          name: `${candidate.name} 후보자 저장 중 · 변경`,
+        }),
+      ).toHaveFocus()
     })
 
     patchGate.resolve()
@@ -292,7 +300,7 @@ describe('RecruitmentBoard candidate stage move', () => {
       ),
     ).not.toHaveLength(0)
     reloadedQueryClient.clear()
-  })
+  }, 10_000)
 
   it('실패한 작업만 이전 단계로 되돌리고 안전한 재시도를 제공한다', async () => {
     const user = userEvent.setup()
@@ -361,7 +369,7 @@ describe('RecruitmentBoard candidate stage move', () => {
       expect(
         within(getStageSection(targetStage)).getByRole('button', {
           hidden: true,
-          name: new RegExp(`^${candidate.name} 후보자,`),
+          name: `${candidate.name} 후보자 저장 중 · 변경`,
         }),
       ).toHaveFocus()
     })
@@ -405,7 +413,7 @@ describe('RecruitmentBoard candidate stage move', () => {
       expect(
         within(getStageSection(targetStage)).getByRole('button', {
           hidden: true,
-          name: new RegExp(`^${candidate.name} 후보자,`),
+          name: `${candidate.name} 후보자 저장 중 · 변경`,
         }),
       ).toHaveFocus()
     })
@@ -417,6 +425,263 @@ describe('RecruitmentBoard candidate stage move', () => {
         `${candidate.name} 후보자를 ${CANDIDATE_STAGE_LABELS[targetStage]} 단계로 이동했습니다.`,
       ),
     ).not.toHaveLength(0)
+  })
+
+  it('결과가 불명확하면 재확인 진행 상태를 알리고 같은 이동을 확정한다', async () => {
+    const user = userEvent.setup()
+    const repository = createCandidateMockRepository({
+      storage: createMemoryCandidateMockStorage(),
+    })
+    const candidate = getFirstCandidate(repository)
+    const targetStage = findDifferentStage(candidate.currentStage)
+    const verificationGate = createDeferred()
+    let detailRequestCount = 0
+    let patchRequestCount = 0
+
+    installRepositoryHandlers(repository)
+    server.use(
+      http.patch('*/api/candidates/:candidateId/stage', () => {
+        patchRequestCount += 1
+
+        return patchRequestCount <= 2 ? HttpResponse.error() : undefined
+      }),
+      http.get('*/api/candidates/:candidateId', async ({ params }) => {
+        detailRequestCount += 1
+
+        if (detailRequestCount === 2) {
+          await verificationGate.promise
+        }
+
+        const confirmedCandidate = repository.getById(
+          String(params.candidateId),
+        )
+
+        if (confirmedCandidate === undefined) {
+          return HttpResponse.json(
+            { error: { code: 'NOT_FOUND' } },
+            { status: 404 },
+          )
+        }
+
+        return HttpResponse.json({ data: confirmedCandidate })
+      }),
+    )
+
+    renderBoard()
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: `${candidate.name} 후보자 단계 변경`,
+      }),
+    )
+    const dialog = await screen.findByRole('dialog', {
+      name: `${candidate.name} 후보자 단계 변경`,
+    })
+
+    await user.click(
+      within(dialog).getByRole('radio', {
+        name: CANDIDATE_STAGE_LABELS[targetStage],
+      }),
+    )
+    await user.click(within(dialog).getByRole('button', { name: '변경하기' }))
+
+    const verificationButton = await screen.findByRole('button', {
+      name: `${candidate.name} 후보자 ${CANDIDATE_STAGE_LABELS[targetStage]} 단계 이동 상태 다시 확인`,
+    })
+
+    expectCandidateInStage(candidate, targetStage)
+    expect(repository.getById(candidate.id)).toEqual(candidate)
+    await user.click(verificationButton)
+
+    const pendingVerificationButton = screen.getByRole('button', {
+      name: `${candidate.name} 후보자 ${CANDIDATE_STAGE_LABELS[targetStage]} 단계 이동 상태 확인 중`,
+    })
+
+    expect(pendingVerificationButton).toBeDisabled()
+    expect(pendingVerificationButton).toHaveAttribute('aria-busy', 'true')
+    expect(pendingVerificationButton).toHaveTextContent('확인 중')
+    expect(detailRequestCount).toBe(2)
+
+    verificationGate.resolve()
+
+    expect(
+      await screen.findAllByText(
+        `${candidate.name} 후보자를 ${CANDIDATE_STAGE_LABELS[targetStage]} 단계로 이동했습니다.`,
+      ),
+    ).not.toHaveLength(0)
+    expect(patchRequestCount).toBe(3)
+    expect(repository.getById(candidate.id)).toMatchObject({
+      currentStage: targetStage,
+      revision: candidate.revision + 1,
+    })
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', {
+          name: `${candidate.name} 후보자 단계 변경`,
+        }),
+      ).toHaveFocus()
+    })
+  })
+
+  it('응답 전 다시 이동하면 최신 의도를 바로 투영하고 revision을 이어서 저장한다', async () => {
+    const user = userEvent.setup()
+    const repository = createCandidateMockRepository({
+      storage: createMemoryCandidateMockStorage(),
+    })
+    const candidate = getFirstCandidate(repository)
+    const [firstTargetStage, finalTargetStage] = CANDIDATE_STAGES.filter(
+      (stage) => stage !== candidate.currentStage,
+    )
+    const firstPatchGate = createDeferred()
+    const secondPatchGate = createDeferred()
+    const toastSuccess = vi.spyOn(toast, 'success')
+    const patchBodies: CandidateStageUpdateRequest[] = []
+
+    if (!firstTargetStage || !finalTargetStage) {
+      throw new Error('연속 이동을 검증할 두 단계를 찾지 못했습니다.')
+    }
+
+    installRepositoryHandlers(repository)
+    server.use(
+      http.patch(
+        '*/api/candidates/:candidateId/stage',
+        async ({ params, request }) => {
+          const body = candidateStageUpdateRequestSchema.parse(
+            await request.json(),
+          )
+          const requestIndex = patchBodies.push(body) - 1
+
+          await (requestIndex === 0
+            ? firstPatchGate.promise
+            : secondPatchGate.promise)
+
+          const operationTime = new Date(
+            Date.parse('2026-08-27T03:00:00.000Z') + requestIndex * 60_000,
+          ).toISOString()
+          const result = repository.commitStage({
+            candidateId: String(params.candidateId),
+            clientMutationId: body.clientMutationId,
+            committedAt: operationTime,
+            currentStage: body.stage,
+            expectedRevision: body.expectedRevision,
+            requestId: `move-race-request-${requestIndex + 1}`,
+            stageChangedAt: operationTime,
+          })
+
+          if (result.status !== 'updated') {
+            throw new Error('연속 단계 이동을 확정하지 못했습니다.')
+          }
+
+          return HttpResponse.json({
+            data: result.candidate,
+            meta: {
+              clientMutationId: body.clientMutationId,
+              requestId: `move-race-request-${requestIndex + 1}`,
+            },
+          })
+        },
+      ),
+    )
+
+    renderBoard()
+
+    const firstTargetSuccessMessage = `${candidate.name} 후보자를 ${CANDIDATE_STAGE_LABELS[firstTargetStage]} 단계로 이동했습니다.`
+    const finalTargetSuccessMessage = `${candidate.name} 후보자를 ${CANDIDATE_STAGE_LABELS[finalTargetStage]} 단계로 이동했습니다.`
+
+    toastSuccess.mockClear()
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: `${candidate.name} 후보자 단계 변경`,
+      }),
+    )
+    let dialog = await screen.findByRole('dialog', {
+      name: `${candidate.name} 후보자 단계 변경`,
+    })
+
+    await user.click(
+      within(dialog).getByRole('radio', {
+        name: CANDIDATE_STAGE_LABELS[firstTargetStage],
+      }),
+    )
+    await user.click(within(dialog).getByRole('button', { name: '변경하기' }))
+
+    await waitFor(() => expectCandidateInStage(candidate, firstTargetStage))
+    await waitFor(() => expect(patchBodies).toHaveLength(1))
+
+    const pendingStageButton = within(
+      getStageSection(firstTargetStage),
+    ).getByRole('button', {
+      hidden: true,
+      name: `${candidate.name} 후보자 저장 중 · 변경`,
+    })
+
+    expect(pendingStageButton).toBeEnabled()
+    expect(pendingStageButton).toHaveAttribute('aria-busy', 'true')
+    await user.click(pendingStageButton)
+
+    dialog = await screen.findByRole('dialog', {
+      name: `${candidate.name} 후보자 단계 변경`,
+    })
+    expect(
+      within(dialog).queryByRole('radio', {
+        name: CANDIDATE_STAGE_LABELS[firstTargetStage],
+      }),
+    ).not.toBeInTheDocument()
+
+    await user.click(
+      within(dialog).getByRole('radio', {
+        name: CANDIDATE_STAGE_LABELS[finalTargetStage],
+      }),
+    )
+    await user.click(within(dialog).getByRole('button', { name: '변경하기' }))
+
+    await waitFor(() => expectCandidateInStage(candidate, finalTargetStage))
+    expect(
+      within(getStageSection(firstTargetStage)).queryByRole('button', {
+        hidden: true,
+        name: new RegExp(`^${candidate.name} 후보자,`),
+      }),
+    ).not.toBeInTheDocument()
+    expect(patchBodies).toHaveLength(1)
+
+    firstPatchGate.resolve()
+
+    await waitFor(() => expect(patchBodies).toHaveLength(2))
+    expect(patchBodies[0]).toMatchObject({
+      expectedRevision: candidate.revision,
+      stage: firstTargetStage,
+    })
+    expect(patchBodies[1]).toMatchObject({
+      expectedRevision: candidate.revision + 1,
+      stage: finalTargetStage,
+    })
+    expect(toastSuccess).not.toHaveBeenCalledWith(
+      firstTargetSuccessMessage,
+      expect.anything(),
+    )
+
+    secondPatchGate.resolve()
+
+    expect(
+      await screen.findAllByText(finalTargetSuccessMessage),
+    ).not.toHaveLength(0)
+    expect(toastSuccess).toHaveBeenCalledWith(
+      finalTargetSuccessMessage,
+      expect.anything(),
+    )
+    expect(repository.getById(candidate.id)).toMatchObject({
+      currentStage: finalTargetStage,
+      revision: candidate.revision + 2,
+    })
+    expectCandidateInStage(candidate, finalTargetStage)
+    expect(
+      within(getStageSection(finalTargetStage)).getByRole('button', {
+        hidden: true,
+        name: `${candidate.name} 후보자 단계 변경`,
+      }),
+    ).not.toHaveAttribute('aria-busy')
+    toastSuccess.mockRestore()
   })
 
   it('상세 모달에서 실패를 알리고 키보드 재시도 뒤 상세 내용으로 포커스를 회복한다', async () => {

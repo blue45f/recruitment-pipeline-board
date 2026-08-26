@@ -4,6 +4,8 @@ const SOURCE_STAGE_SELECTOR =
   'section[aria-labelledby="candidate-stage-document_review"]'
 const TARGET_STAGE_SELECTOR =
   'section[aria-labelledby="candidate-stage-interview"]'
+const FINAL_STAGE_SELECTOR =
+  'section[aria-labelledby="candidate-stage-offer_discussion"]'
 
 describe('candidate stage move', () => {
   it('단계를 저장하고 다시 방문해도 확정 결과를 유지한다', () => {
@@ -215,5 +217,117 @@ describe('candidate stage move', () => {
       })
     cy.injectAxe()
     cy.checkA11y('[role="dialog"]')
+  })
+
+  it('저장 중에도 최신 목적 단계로 다시 이동하고 마지막 결과만 확정한다', () => {
+    cy.viewport(1440, 900)
+    let shouldGateFirstPatch = true
+    let releaseFirstPatchResponse = () => undefined
+    const firstPatchResponseGate = new Cypress.Promise<void>((resolve) => {
+      releaseFirstPatchResponse = resolve
+    })
+
+    cy.intercept('PATCH', '**/api/candidates/*/stage', (request) => {
+      if (!shouldGateFirstPatch) return
+
+      shouldGateFirstPatch = false
+      request.on('before:response', () => firstPatchResponseGate)
+    })
+    visitRecruitmentBoardWithStableMockApi({ storageMode: 'reset' })
+
+    cy.contains('[role="status"]', '전체 200명 중 200명을 표시합니다.', {
+      timeout: 5_000,
+    }).should('be.visible')
+    cy.get<HTMLButtonElement>(
+      `${SOURCE_STAGE_SELECTOR} [data-stage-change-candidate-id]`,
+    )
+      .first()
+      .should('be.visible')
+      .then(($button) => {
+        const candidateId = $button.attr('data-stage-change-candidate-id')
+        const candidateName = $button.attr('aria-label')?.split(' 후보자 ')[0]
+
+        expect(candidateId).to.be.a('string').and.not.equal('')
+        expect(candidateName).to.be.a('string').and.not.equal('')
+
+        cy.wrap(candidateId).as('rapidMoveCandidateId')
+        cy.wrap(candidateName).as('rapidMoveCandidateName')
+        cy.wrap($button).click()
+      })
+
+    cy.get('[role="dialog"] input[type="radio"][value="interview"]').check()
+    cy.contains('[role="dialog"] button', /^변경하기$/).click()
+
+    cy.get('@rapidMoveCandidateId').then((candidateId) => {
+      const id = String(candidateId)
+
+      cy.get<HTMLButtonElement>(
+        `${TARGET_STAGE_SELECTOR} [data-stage-change-candidate-id="${id}"]`,
+      )
+        .should('be.visible')
+        .and('be.enabled')
+        .and('have.attr', 'aria-busy', 'true')
+        .click()
+    })
+
+    cy.get('[role="dialog"]').should('be.visible')
+    cy.get('[role="dialog"] input[type="radio"][value="interview"]').should(
+      'not.exist',
+    )
+    cy.get(
+      '[role="dialog"] input[type="radio"][value="offer_discussion"]',
+    ).check()
+    cy.contains('[role="dialog"] button', /^변경하기$/).click()
+    cy.then(() => releaseFirstPatchResponse())
+
+    cy.get('@rapidMoveCandidateId').then((candidateId) => {
+      const id = String(candidateId)
+
+      cy.get(`${FINAL_STAGE_SELECTOR} [data-stage-change-candidate-id="${id}"]`)
+        .should('be.visible')
+        .and('be.enabled')
+        .and('have.attr', 'aria-busy', 'true')
+      cy.get(
+        `${TARGET_STAGE_SELECTOR} [data-stage-change-candidate-id="${id}"]`,
+      ).should('not.exist')
+    })
+
+    cy.get('@rapidMoveCandidateName').then((candidateName) => {
+      cy.contains(
+        '[data-sonner-toast]',
+        `${String(candidateName)} 후보자를 처우협의 단계로 이동했습니다.`,
+        { timeout: 5_000 },
+      ).should('be.visible')
+      cy.contains(
+        '[data-sonner-toast]',
+        `${String(candidateName)} 후보자를 면접 단계로 이동했습니다.`,
+      ).should('not.exist')
+    })
+    cy.get('@rapidMoveCandidateId').then((candidateId) => {
+      cy.get(
+        `${FINAL_STAGE_SELECTOR} [data-stage-change-candidate-id="${String(candidateId)}"]`,
+      )
+        .should('be.visible')
+        .and('not.have.attr', 'aria-busy')
+    })
+    cy.injectAxe()
+    cy.checkA11y('main')
+
+    visitRecruitmentBoardWithStableMockApi({ storageMode: 'preserve' })
+
+    cy.contains('[role="status"]', '전체 200명 중 200명을 표시합니다.', {
+      timeout: 5_000,
+    }).should('be.visible')
+    cy.get('@rapidMoveCandidateId').then((candidateId) => {
+      cy.get(
+        `${FINAL_STAGE_SELECTOR} [data-candidate-id="${String(candidateId)}"]`,
+      ).should('be.visible')
+      cy.get(
+        `${SOURCE_STAGE_SELECTOR} [data-candidate-id="${String(candidateId)}"]`,
+      ).should('not.exist')
+      cy.get(
+        `${TARGET_STAGE_SELECTOR} [data-candidate-id="${String(candidateId)}"]`,
+      ).should('not.exist')
+    })
   })
 })

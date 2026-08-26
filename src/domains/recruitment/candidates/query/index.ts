@@ -1,4 +1,7 @@
-export { mergeConfirmedCandidateInCache } from './candidateCache'
+export {
+  findLatestConfirmedCandidateInCache,
+  mergeConfirmedCandidateInCache,
+} from './candidateCache'
 export {
   reconcileCandidateDetailResponse,
   reconcileCandidateListResponse,

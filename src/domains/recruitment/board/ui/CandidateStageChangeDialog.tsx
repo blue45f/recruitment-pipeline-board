@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowRight } from 'lucide-react'
-import { useId, type RefObject } from 'react'
+import { useId, useState, type RefObject } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/Button'
@@ -31,6 +31,14 @@ export function CandidateStageChangeDialog({
   onMoveCandidate,
 }: CandidateStageChangeDialogProps) {
   const formId = useId()
+  const [openingTrigger] = useState(() => {
+    const activeElement = document.activeElement
+
+    return activeElement instanceof HTMLButtonElement &&
+      activeElement.dataset.stageChangeCandidateId === candidate.id
+      ? activeElement
+      : null
+  })
   const formSchema = createCandidateStageChangeFormSchema(
     candidate.currentStage,
   )
@@ -61,6 +69,17 @@ export function CandidateStageChangeDialog({
         </>
       }
       onCloseAutoFocus={(event) => {
+        event.preventDefault()
+
+        if (
+          openingTrigger !== null &&
+          openingTrigger.isConnected &&
+          !openingTrigger.disabled
+        ) {
+          openingTrigger.focus()
+          return
+        }
+
         const stageChangeButton = Array.from(
           document.querySelectorAll<HTMLButtonElement>(
             '[data-stage-change-candidate-id]',
@@ -70,8 +89,6 @@ export function CandidateStageChangeDialog({
             button.dataset.stageChangeCandidateId === candidate.id &&
             !button.disabled,
         )
-
-        event.preventDefault()
 
         if (stageChangeButton) {
           stageChangeButton.focus()

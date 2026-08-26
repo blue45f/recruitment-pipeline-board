@@ -113,6 +113,38 @@ describe('candidate API client', () => {
     })
   })
 
+  it('상세 응답의 후보자 ID가 요청과 다르면 캐시하기 전에 거부한다', async () => {
+    const anotherCandidate = generateCandidateFixtures({
+      seed: 43,
+      size: 200,
+    })[0]
+
+    expect(anotherCandidate).toBeDefined()
+    if (anotherCandidate === undefined) return
+
+    server.use(
+      http.get('*/api/candidates/:candidateId', () =>
+        HttpResponse.json(
+          candidateDetailResponseSchema.parse({ data: anotherCandidate }),
+          { headers: { 'x-request-id': 'mismatched-detail' } },
+        ),
+      ),
+    )
+
+    const error = await expectApiError(
+      createTestApi().detail({ candidateId: candidate.id }),
+    )
+
+    expect(error).toMatchObject({
+      kind: 'schema',
+      requestId: 'mismatched-detail',
+      retryable: false,
+      safeMessage: '응답 형식을 확인할 수 없습니다.',
+      status: 200,
+    })
+    expect(error.cause).toBeInstanceOf(ZodError)
+  })
+
   it('strict 응답 스키마 불일치를 안전한 schema 오류로 바꾼다', async () => {
     server.use(
       http.get('*/api/candidates', () =>
@@ -164,16 +196,75 @@ describe('candidate API client', () => {
     expect(error.cause).toBeInstanceOf(SyntaxError)
   })
 
-  it('HTTPError.data의 서버 원문을 사용자 메시지로 노출하지 않는다', async () => {
-    const privateServerMessage = 'database shard secret detail'
+  it.each([
+    [
+      'REVISION_CONFLICT',
+      'mutation-revision-conflict',
+      '다른 변경이 먼저 반영되었습니다. 최신 상태를 확인해 주세요.',
+    ],
+    [
+      'IDEMPOTENCY_KEY_CONFLICT',
+      'mutation-idempotency-conflict',
+      '같은 요청 식별자가 다른 단계 변경에 사용되었습니다. 다시 시도해 주세요.',
+    ],
+  ] as const)(
+    '409 %s 코드를 보존하되 HTTPError.data의 서버 원문은 노출하지 않는다',
+    async (code, clientMutationId, safeMessage) => {
+      const privateServerMessage = 'database shard secret detail'
+      server.use(
+        http.patch('*/api/candidates/:candidateId/stage', () =>
+          HttpResponse.json(
+            {
+              error: {
+                code,
+                message: privateServerMessage,
+                requestId: 'conflict-request',
+                retryable: false,
+              },
+            },
+            {
+              status: 409,
+              headers: { 'x-request-id': 'conflict-request' },
+            },
+          ),
+        ),
+      )
+
+      const error = await expectApiError(
+        createTestApi().updateStage(
+          { candidateId: candidate.id },
+          {
+            stage: 'rejected',
+            expectedRevision: candidate.revision,
+            clientMutationId,
+          },
+        ),
+      )
+
+      expect(error).toMatchObject({
+        kind: 'http',
+        code,
+        status: 409,
+        requestId: 'conflict-request',
+        retryable: false,
+      })
+      expect(error.message).not.toContain(privateServerMessage)
+      expect(error.safeMessage).not.toContain(privateServerMessage)
+      expect(error.safeMessage).toBe(safeMessage)
+    },
+  )
+
+  it('whitelist 밖의 서버 오류 코드는 보존하지 않는다', async () => {
     server.use(
       http.patch('*/api/candidates/:candidateId/stage', () =>
         HttpResponse.json(
-          { error: { message: privateServerMessage } },
           {
-            status: 409,
-            headers: { 'x-request-id': 'conflict-request' },
+            error: {
+              code: 'DATABASE_INTERNAL_DETAIL',
+              message: 'private server detail',
+            },
           },
+          { status: 409 },
         ),
       ),
     )
@@ -184,19 +275,13 @@ describe('candidate API client', () => {
         {
           stage: 'rejected',
           expectedRevision: candidate.revision,
-          clientMutationId: 'mutation-conflict',
+          clientMutationId: 'mutation-unknown-code',
         },
       ),
     )
 
-    expect(error).toMatchObject({
-      kind: 'http',
-      status: 409,
-      requestId: 'conflict-request',
-      retryable: false,
-    })
-    expect(error.message).not.toContain(privateServerMessage)
-    expect(error.safeMessage).not.toContain(privateServerMessage)
+    expect(error.code).toBeUndefined()
+    expect(error.message).not.toContain('private server detail')
   })
 
   it('Ky 자체는 503 GET을 재시도하지 않고 retryable 정보만 남긴다', async () => {

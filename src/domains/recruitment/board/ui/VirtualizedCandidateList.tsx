@@ -193,9 +193,7 @@ export function VirtualizedCandidateList({
       return
     }
 
-    const action = pendingCandidateIds.has(focusRequest.candidateId)
-      ? 'detail'
-      : 'stage'
+    const action = 'stage'
 
     handledFocusRequestId.current = focusRequest.requestId
     pendingFocus.current = {
@@ -243,10 +241,7 @@ export function VirtualizedCandidateList({
     event.preventDefault()
 
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-      const targetAction =
-        event.key === 'ArrowLeft' || pendingCandidateIds.has(candidateId)
-          ? 'detail'
-          : 'stage'
+      const targetAction = event.key === 'ArrowLeft' ? 'detail' : 'stage'
 
       if (targetAction === action) {
         return
@@ -269,10 +264,7 @@ export function VirtualizedCandidateList({
       return
     }
 
-    const targetAction =
-      action === 'stage' && pendingCandidateIds.has(targetCandidate.id)
-        ? 'detail'
-        : action
+    const targetAction = action
 
     pendingFocus.current = {
       action: targetAction,
@@ -364,9 +356,7 @@ export function VirtualizedCandidateList({
           return null
         }
 
-        const resolvedActiveAction = pendingCandidateIds.has(candidate.id)
-          ? 'detail'
-          : activeAction
+        const resolvedActiveAction = activeAction
 
         return (
           <li

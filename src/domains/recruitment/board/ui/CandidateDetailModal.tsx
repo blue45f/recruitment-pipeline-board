@@ -14,7 +14,6 @@ import type {
   Candidate,
   CandidateId,
   CandidateListResponse,
-  CandidateStage,
 } from '@/domains/recruitment/candidates/model'
 import {
   candidateDetailQueryOptions,
@@ -25,10 +24,15 @@ import {
   projectCandidateStage,
   useBoardDetailStore,
   type CandidateStageMoveFailure,
+  type CandidateStageMoveVerificationResolution,
+  type CandidateStageMoveVerificationRequired,
   type CandidateStageProjection,
 } from '../model'
 import { CandidateDetailView } from './CandidateDetailView'
-import { CandidateStageMoveErrorNotice } from './CandidateStageMoveErrorNotice'
+import {
+  CandidateStageMoveErrorNotice,
+  CandidateStageMoveVerificationNotice,
+} from './CandidateStageMoveErrorNotice'
 
 function CandidateDetailSkeleton() {
   return (
@@ -154,13 +158,21 @@ function CandidateDetailContent({
 export type CandidateDetailModalProps = Readonly<{
   fallbackFocusRef: RefObject<HTMLElement | null>
   onChangeStage?: (candidate: Candidate) => void
-  onRetryStageMove?: (candidate: Candidate, stage: CandidateStage) => void
+  onRetryStageMove?: (candidateId: CandidateId) => unknown
+  onVerifyStageMove?: (
+    candidateId: CandidateId,
+  ) => Promise<CandidateStageMoveVerificationResolution>
   pendingCandidateIds?: ReadonlySet<CandidateId>
   stageMoveFailureByCandidateId?: ReadonlyMap<
     CandidateId,
     CandidateStageMoveFailure
   >
+  stageMoveVerificationByCandidateId?: ReadonlyMap<
+    CandidateId,
+    CandidateStageMoveVerificationRequired
+  >
   stageProjectionByCandidateId?: CandidateStageProjection
+  verificationPendingCandidateIds?: ReadonlySet<CandidateId>
 }>
 
 const EMPTY_PENDING_CANDIDATE_IDS = new Set<CandidateId>()
@@ -168,15 +180,22 @@ const EMPTY_STAGE_MOVE_FAILURES = new Map<
   CandidateId,
   CandidateStageMoveFailure
 >()
+const EMPTY_STAGE_MOVE_VERIFICATIONS = new Map<
+  CandidateId,
+  CandidateStageMoveVerificationRequired
+>()
 const EMPTY_STAGE_PROJECTION: CandidateStageProjection = new Map()
 
 export function CandidateDetailModal({
   fallbackFocusRef,
   onChangeStage,
   onRetryStageMove,
+  onVerifyStageMove,
   pendingCandidateIds = EMPTY_PENDING_CANDIDATE_IDS,
   stageMoveFailureByCandidateId = EMPTY_STAGE_MOVE_FAILURES,
+  stageMoveVerificationByCandidateId = EMPTY_STAGE_MOVE_VERIFICATIONS,
   stageProjectionByCandidateId = EMPTY_STAGE_PROJECTION,
+  verificationPendingCandidateIds = EMPTY_PENDING_CANDIDATE_IDS,
 }: CandidateDetailModalProps) {
   const detailPanelRef = useRef<HTMLDivElement>(null)
   const restoreFocusCandidateId = useRef<CandidateId | null>(null)
@@ -187,6 +206,9 @@ export function CandidateDetailModal({
   const closeCandidate = useBoardDetailStore((state) => state.closeCandidate)
   const stageMoveFailure = selectedCandidateId
     ? stageMoveFailureByCandidateId.get(selectedCandidateId)
+    : undefined
+  const stageMoveVerification = selectedCandidateId
+    ? stageMoveVerificationByCandidateId.get(selectedCandidateId)
     : undefined
   const candidateName = queryClient
     .getQueriesData<CandidateListResponse>({
@@ -244,11 +266,27 @@ export function CandidateDetailModal({
                 failure={stageMoveFailure}
                 onRetry={() => {
                   detailPanelRef.current?.focus({ preventScroll: true })
-                  onRetryStageMove(
-                    stageMoveFailure.candidate,
-                    stageMoveFailure.targetStage,
-                  )
+                  onRetryStageMove(stageMoveFailure.candidateId)
                 }}
+              />
+            </div>
+          ) : null}
+          {stageMoveVerification && onVerifyStageMove ? (
+            <div className="mb-5">
+              <CandidateStageMoveVerificationNotice
+                isVerifying={verificationPendingCandidateIds.has(
+                  stageMoveVerification.candidateId,
+                )}
+                onVerify={() => {
+                  void onVerifyStageMove(
+                    stageMoveVerification.candidateId,
+                  ).then((resolution) => {
+                    if (resolution.status !== 'verification-required') {
+                      detailPanelRef.current?.focus({ preventScroll: true })
+                    }
+                  })
+                }}
+                verification={stageMoveVerification}
               />
             </div>
           ) : null}

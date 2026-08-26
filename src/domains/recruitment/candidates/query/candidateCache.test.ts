@@ -6,7 +6,10 @@ import type {
   CandidateDetailResponse,
   CandidateListResponse,
 } from '../model'
-import { mergeConfirmedCandidateInCache } from './candidateCache'
+import {
+  findLatestConfirmedCandidateInCache,
+  mergeConfirmedCandidateInCache,
+} from './candidateCache'
 import { candidateQueryKeys } from './candidateQueryOptions'
 import {
   reconcileCandidateDetailResponse,
@@ -184,6 +187,10 @@ describe('candidate cache', () => {
     queryClient.setQueryData<CandidateDetailResponse>(
       candidateQueryKeys.detail(candidate.id),
       { data: detailCandidate },
+    )
+
+    expect(findLatestConfirmedCandidateInCache(queryClient, candidate.id)).toBe(
+      latestListCandidate,
     )
 
     mergeConfirmedCandidateInCache(queryClient, {

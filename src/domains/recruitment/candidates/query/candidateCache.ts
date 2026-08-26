@@ -3,6 +3,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import type {
   Candidate,
   CandidateDetailResponse,
+  CandidateId,
   CandidateListResponse,
 } from '../model'
 import { candidateQueryKeys } from './candidateQueryKeys'
@@ -39,33 +40,43 @@ function replaceCandidateInList(
   return { ...response, data }
 }
 
-function findCanonicalCandidate(
+export function findLatestConfirmedCandidateInCache(
   queryClient: QueryClient,
-  incomingCandidate: Candidate,
+  candidateId: CandidateId,
 ) {
   const detailResponse = queryClient.getQueryData<CandidateDetailResponse>(
-    candidateQueryKeys.detail(incomingCandidate.id),
+    candidateQueryKeys.detail(candidateId),
   )
   const loadedListResponses = queryClient.getQueriesData<CandidateListResponse>(
     {
       queryKey: candidateQueryKeys.lists(),
     },
   )
-  let cachedCandidate = detailResponse?.data
+  let latestCandidate = detailResponse?.data
 
   for (const [, response] of loadedListResponses) {
-    const listCandidate = response?.data.find(
-      ({ id }) => id === incomingCandidate.id,
-    )
+    const listCandidate = response?.data.find(({ id }) => id === candidateId)
 
     if (
       listCandidate !== undefined &&
-      (cachedCandidate === undefined ||
-        listCandidate.revision > cachedCandidate.revision)
+      (latestCandidate === undefined ||
+        listCandidate.revision > latestCandidate.revision)
     ) {
-      cachedCandidate = listCandidate
+      latestCandidate = listCandidate
     }
   }
+
+  return latestCandidate
+}
+
+function findCanonicalCandidate(
+  queryClient: QueryClient,
+  incomingCandidate: Candidate,
+) {
+  const cachedCandidate = findLatestConfirmedCandidateInCache(
+    queryClient,
+    incomingCandidate.id,
+  )
 
   if (
     cachedCandidate !== undefined &&

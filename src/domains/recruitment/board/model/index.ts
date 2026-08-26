@@ -18,10 +18,11 @@ export {
   type CandidateStageProjection,
 } from './candidateStageProjection'
 export { groupCandidatesByStage } from './groupCandidatesByStage'
-export {
-  getCandidateStageMoveErrorMessage,
-  useCandidateStageMove,
+export { useCandidateStageMove } from './useCandidateStageMove'
+export type {
+  CandidateStageMoveFailure,
+  CandidateStageMoveVerificationResolution,
+  CandidateStageMoveVerificationRequired,
 } from './useCandidateStageMove'
-export type { CandidateStageMoveFailure } from './useCandidateStageMove'
 export { useBoardDetailStore } from './useBoardDetailStore'
 export { useBoardPreferencesStore } from './useBoardPreferencesStore'

@@ -67,10 +67,17 @@ export function createCandidateApi(
     },
     async detail(input: CandidateDetailRequest, options: RequestOptions = {}) {
       const request = parseRequest(candidateDetailRequestSchema, input)
+      const responseSchema = candidateDetailResponseSchema.refine(
+        (response) => response.data.id === request.candidateId,
+        {
+          message: '응답 후보자 ID가 요청과 다릅니다.',
+          path: ['data', 'id'],
+        },
+      )
 
       return requestJson(
         client.get(`candidates/${request.candidateId}`, options),
-        candidateDetailResponseSchema,
+        responseSchema,
         'query',
       )
     },

@@ -40,7 +40,10 @@ import { CandidateDetailModal } from './ui/CandidateDetailModal'
 import { CandidateEmptyState } from './ui/CandidateEmptyState'
 import { CandidateFilters as CandidateFiltersForm } from './ui/CandidateFilters'
 import { CandidateStageChangeDialog } from './ui/CandidateStageChangeDialog'
-import { CandidateStageMoveErrorNotice } from './ui/CandidateStageMoveErrorNotice'
+import {
+  CandidateStageMoveErrorNotice,
+  CandidateStageMoveVerificationNotice,
+} from './ui/CandidateStageMoveErrorNotice'
 
 type CandidateBoardContentProps = Readonly<{
   filters: CandidateFilters
@@ -131,8 +134,12 @@ export function RecruitmentBoard() {
   const {
     moveCandidate,
     pendingCandidateIds,
+    retryCandidate,
     stageMoveFailureByCandidateId,
+    stageMoveVerificationByCandidateId,
     stageProjectionByCandidateId,
+    verificationPendingCandidateIds,
+    verifyCandidate,
   } = useCandidateStageMove()
   const openCandidate = useBoardDetailStore((state) => state.openCandidate)
   const selectedCandidateId = useBoardDetailStore(
@@ -156,11 +163,11 @@ export function RecruitmentBoard() {
   const updateFilters = (nextFilters: CandidateFilters) => {
     setSearchParams(writeCandidateFilters(nextFilters), { replace: true })
   }
-  const submitStageMove = (candidate: Candidate, stage: CandidateStage) => {
+  const requestCandidateStageFocus = (candidateId: CandidateId) => {
     if (selectedCandidateId === null) {
       focusRequestSequence.current += 1
       const nextFocusRequest = {
-        candidateId: candidate.id,
+        candidateId,
         requestId: focusRequestSequence.current,
       }
 
@@ -168,12 +175,19 @@ export function RecruitmentBoard() {
         setFocusRequest(nextFocusRequest)
       })
     }
+  }
+
+  const submitStageMove = (candidate: Candidate, stage: CandidateStage) => {
+    requestCandidateStageFocus(candidate.id)
 
     moveCandidate(candidate, stage)
   }
   const boardStageMoveFailures = Array.from(
     stageMoveFailureByCandidateId.values(),
-  ).filter(({ candidate }) => candidate.id !== selectedCandidateId)
+  ).filter(({ candidateId }) => candidateId !== selectedCandidateId)
+  const boardStageMoveVerifications = Array.from(
+    stageMoveVerificationByCandidateId.values(),
+  ).filter(({ candidateId }) => candidateId !== selectedCandidateId)
 
   return (
     <main className="min-h-svh bg-[var(--color-surface)] px-3 py-3 text-[var(--color-ink)] sm:px-5 sm:py-5 lg:px-7">
@@ -223,15 +237,35 @@ export function RecruitmentBoard() {
           <h2 className="sr-only" id="pipeline-board-title">
             채용 단계별 후보자
           </h2>
-          {boardStageMoveFailures.length > 0 ? (
+          {boardStageMoveFailures.length > 0 ||
+          boardStageMoveVerifications.length > 0 ? (
             <div className="mb-4 grid gap-3">
               {boardStageMoveFailures.map((failure) => (
                 <CandidateStageMoveErrorNotice
                   failure={failure}
-                  key={failure.candidate.id}
-                  onRetry={() =>
-                    submitStageMove(failure.candidate, failure.targetStage)
-                  }
+                  key={`${failure.candidateId}:failure:${failure.completedAt}`}
+                  onRetry={() => {
+                    requestCandidateStageFocus(failure.candidateId)
+                    retryCandidate(failure.candidateId)
+                  }}
+                />
+              ))}
+              {boardStageMoveVerifications.map((verification) => (
+                <CandidateStageMoveVerificationNotice
+                  isVerifying={verificationPendingCandidateIds.has(
+                    verification.candidateId,
+                  )}
+                  key={`${verification.candidateId}:verification`}
+                  onVerify={() => {
+                    void verifyCandidate(verification.candidateId).then(
+                      (resolution) => {
+                        if (resolution.status !== 'verification-required') {
+                          requestCandidateStageFocus(verification.candidateId)
+                        }
+                      },
+                    )
+                  }}
+                  verification={verification}
                 />
               ))}
             </div>
@@ -283,10 +317,13 @@ export function RecruitmentBoard() {
       <CandidateDetailModal
         fallbackFocusRef={boardRegionRef}
         onChangeStage={setStageChangeCandidate}
-        onRetryStageMove={submitStageMove}
+        onRetryStageMove={retryCandidate}
+        onVerifyStageMove={verifyCandidate}
         pendingCandidateIds={pendingCandidateIds}
         stageMoveFailureByCandidateId={stageMoveFailureByCandidateId}
+        stageMoveVerificationByCandidateId={stageMoveVerificationByCandidateId}
         stageProjectionByCandidateId={stageProjectionByCandidateId}
+        verificationPendingCandidateIds={verificationPendingCandidateIds}
       />
       {stageChangeCandidate ? (
         <CandidateStageChangeDialog

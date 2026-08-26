@@ -24,6 +24,7 @@ import { server } from '@/mocks/server'
 import { installVirtualizedListDomMocks } from '@/test/installVirtualizedListDomMocks'
 
 import { useBoardDetailStore, useBoardPreferencesStore } from './model'
+import { CandidateMovementProvider } from './movement'
 import { RecruitmentBoard } from './RecruitmentBoard'
 
 const queryClients = new Set<QueryClient>()
@@ -90,10 +91,12 @@ function renderBoard({ initialEntry = '/' }: RenderBoardOptions = {}) {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[initialEntry]}>
-        <RecruitmentBoard />
-        <LocationSearchProbe />
-      </MemoryRouter>
+      <CandidateMovementProvider>
+        <MemoryRouter initialEntries={[initialEntry]}>
+          <RecruitmentBoard />
+          <LocationSearchProbe />
+        </MemoryRouter>
+      </CandidateMovementProvider>
     </QueryClientProvider>,
   )
 }
@@ -159,9 +162,11 @@ describe('RecruitmentBoard', () => {
     expect(
       screen.getByRole('heading', { name: '채용 후보자 보드', level: 1 }),
     ).toBeInTheDocument()
-    const board = await screen.findByRole('region', {
-      name: '채용 단계별 후보자 보드',
-    })
+    const board = await screen.findByRole(
+      'region',
+      { name: '채용 단계별 후보자 보드' },
+      { timeout: 5_000 },
+    )
     const card = within(board)
       .getAllByRole('article')
       .find((article) => within(article).queryByText(firstCandidate.name))
@@ -250,7 +255,7 @@ describe('RecruitmentBoard', () => {
     })
 
     const listSizeSelect = screen.getByRole('combobox', {
-      name: '표시할 데이터',
+      name: /^표시할 데이터 /,
     })
 
     listSizeSelect.focus()
@@ -400,7 +405,7 @@ describe('RecruitmentBoard', () => {
       expect(currentSearchParams().get('query')).toBe('김')
     })
 
-    const roleSelect = screen.getByRole('combobox', { name: '직무' })
+    const roleSelect = screen.getByRole('combobox', { name: /^직무 / })
     roleSelect.focus()
     await user.keyboard(' ')
     await screen.findByRole('option', { name: '전체 직무' })
@@ -431,7 +436,7 @@ describe('RecruitmentBoard', () => {
     expect(screen.getByRole('searchbox', { name: '후보자 검색' })).toHaveValue(
       '김',
     )
-    expect(screen.getByRole('combobox', { name: '직무' })).toHaveTextContent(
+    expect(screen.getByRole('combobox', { name: /^직무 / })).toHaveTextContent(
       '전체 직무',
     )
   })

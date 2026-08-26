@@ -208,6 +208,159 @@ describe('candidate mock API', () => {
     expect(winnerBody.data.revision).toBe(candidate.revision + 1)
   })
 
+  it('같은 clientMutationId의 동시 PATCH를 한 번만 반영하고 같은 결과로 replay한다', async () => {
+    let waitingCount = 0
+    let releaseGate: (() => void) | undefined
+    let resolveBothWaiting: (() => void) | undefined
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve
+    })
+    const bothWaiting = new Promise<void>((resolve) => {
+      resolveBothWaiting = resolve
+    })
+    const { repository } = installTestApi({
+      wait: async () => {
+        waitingCount += 1
+        if (waitingCount === 2) resolveBothWaiting?.()
+        await gate
+      },
+    })
+    const candidate = repository.list(200)[0]
+    expect(candidate).toBeDefined()
+    if (candidate === undefined) return
+
+    const firstRequest = requestStageUpdate(
+      candidate,
+      'interview',
+      'mutation-same-request',
+    )
+    const secondRequest = requestStageUpdate(
+      candidate,
+      'interview',
+      'mutation-same-request',
+    )
+
+    await bothWaiting
+    releaseGate?.()
+
+    const responses = await Promise.all([firstRequest, secondRequest])
+    expect(responses.map(({ status }) => status)).toEqual([200, 200])
+    expect(
+      responses.map((response) => response.headers.get('x-request-id')),
+    ).toEqual(['request-1', 'request-2'])
+
+    const bodies = await Promise.all(
+      responses.map(async (response) =>
+        candidateStageUpdateResponseSchema.parse(await response.json()),
+      ),
+    )
+    expect(bodies[1]).toEqual(bodies[0])
+    expect(repository.getById(candidate.id)?.revision).toBe(
+      candidate.revision + 1,
+    )
+  })
+
+  it('일시 실패 조건보다 기존 idempotency 충돌을 먼저 판정한다', async () => {
+    let shouldFail = false
+    const { repository } = installTestApi({
+      shouldFail: () => shouldFail,
+    })
+    const candidate = repository.list(200)[0]
+    expect(candidate).toBeDefined()
+    if (candidate === undefined) return
+
+    const firstResponse = await requestStageUpdate(
+      candidate,
+      'interview',
+      'mutation-conflict-before-failure',
+    )
+    shouldFail = true
+    const conflictResponse = await requestStageUpdate(
+      candidate,
+      'hired',
+      'mutation-conflict-before-failure',
+    )
+
+    expect(firstResponse.status).toBe(200)
+    expect(conflictResponse.status).toBe(409)
+    await expect(conflictResponse.json()).resolves.toMatchObject({
+      error: { code: 'IDEMPOTENCY_KEY_CONFLICT' },
+    })
+    expect(repository.getById(candidate.id)?.revision).toBe(
+      candidate.revision + 1,
+    )
+  })
+
+  it('같은 clientMutationId를 다른 payload에 재사용하면 idempotency 충돌을 반환한다', async () => {
+    const { repository } = installTestApi()
+    const candidate = repository.list(200)[0]
+    expect(candidate).toBeDefined()
+    if (candidate === undefined) return
+
+    const firstResponse = await requestStageUpdate(
+      candidate,
+      'interview',
+      'mutation-payload-conflict',
+    )
+    const conflictResponse = await requestStageUpdate(
+      candidate,
+      'hired',
+      'mutation-payload-conflict',
+    )
+
+    expect(firstResponse.status).toBe(200)
+    expect(conflictResponse.status).toBe(409)
+    await expect(conflictResponse.json()).resolves.toMatchObject({
+      error: {
+        code: 'IDEMPOTENCY_KEY_CONFLICT',
+        retryable: false,
+      },
+    })
+    expect(repository.getById(candidate.id)).toMatchObject({
+      currentStage: 'interview',
+      revision: candidate.revision + 1,
+    })
+  })
+
+  it('새 repository의 replay는 강제 실패 조건이어도 원래 응답을 반환한다', async () => {
+    const storage = createMemoryCandidateMockStorage()
+    const firstApi = installTestApi({ storage })
+    const candidate = firstApi.repository.list(200)[0]
+    expect(candidate).toBeDefined()
+    if (candidate === undefined) return
+
+    const firstResponse = await requestStageUpdate(
+      candidate,
+      'offer_discussion',
+      'mutation-recreated-replay',
+    )
+    const firstBody = candidateStageUpdateResponseSchema.parse(
+      await firstResponse.json(),
+    )
+    let failureCheckCount = 0
+
+    const reloadedApi = installTestApi({
+      storage,
+      shouldFail: () => {
+        failureCheckCount += 1
+        return true
+      },
+    })
+    const replayResponse = await requestStageUpdate(
+      candidate,
+      'offer_discussion',
+      'mutation-recreated-replay',
+    )
+    const replayBody = candidateStageUpdateResponseSchema.parse(
+      await replayResponse.json(),
+    )
+
+    expect(replayResponse.status).toBe(200)
+    expect(replayBody).toEqual(firstBody)
+    expect(failureCheckCount).toBe(1)
+    expect(reloadedApi.repository.getById(candidate.id)).toEqual(firstBody.data)
+  })
+
   it('같은 storage를 공유하는 repository도 fresh revision으로 CAS한다', () => {
     const storage = createMemoryCandidateMockStorage()
     const firstRepository = createCandidateMockRepository({ storage })
@@ -230,7 +383,7 @@ describe('candidate mock API', () => {
     })
 
     expect(firstResult.status).toBe('updated')
-    expect(secondResult.status).toBe('conflict')
+    expect(secondResult.status).toBe('revision-conflict')
   })
 
   it('강제 503 실패 뒤 단계와 revision을 변경하지 않는다', async () => {
@@ -257,6 +410,7 @@ describe('candidate mock API', () => {
     const failingStorage: CandidateMockStorage = {
       read: memoryStorage.read,
       remove: memoryStorage.remove,
+      runExclusive: memoryStorage.runExclusive,
       write: () => {
         throw new Error('storage unavailable')
       },
@@ -274,6 +428,7 @@ describe('candidate mock API', () => {
 
     expect(response.status).toBe(503)
     expect(repository.getById(candidate.id)).toEqual(candidate)
+    expect(memoryStorage.read()).toBeNull()
   })
 
   it('storage read 실패를 구조화된 503으로 반환한다', async () => {
@@ -282,6 +437,7 @@ describe('candidate mock API', () => {
         throw new Error('storage unavailable')
       },
       remove: () => undefined,
+      runExclusive: async (operation) => operation(),
       write: () => undefined,
     }
     installTestApi({ storage: failingStorage })

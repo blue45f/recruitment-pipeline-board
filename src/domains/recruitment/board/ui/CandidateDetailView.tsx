@@ -1,4 +1,9 @@
-import { ArrowRightLeft, BriefcaseBusiness, Mail } from 'lucide-react'
+import {
+  ArrowRightLeft,
+  BriefcaseBusiness,
+  LoaderCircle,
+  Mail,
+} from 'lucide-react'
 import { useId } from 'react'
 
 import { Badge } from '@/components/ui/Badge'
@@ -52,17 +57,27 @@ export function CandidateDetailView({
           </Badge>
           {onChangeStage ? (
             <Button
+              aria-busy={isStageChangePending || undefined}
               aria-haspopup="dialog"
-              aria-label={`${candidate.name} 후보자 단계 변경`}
+              aria-label={
+                isStageChangePending
+                  ? `${candidate.name} 후보자 저장 중 · 변경`
+                  : `${candidate.name} 후보자 단계 변경`
+              }
               data-stage-change-candidate-id={candidate.id}
-              loading={isStageChangePending}
-              loadingLabel={`${candidate.name} 후보자 단계 저장 중`}
               onClick={() => onChangeStage(candidate)}
               size="sm"
               variant="secondary"
             >
-              <ArrowRightLeft aria-hidden="true" className="size-4" />
-              단계 변경
+              {isStageChangePending ? (
+                <LoaderCircle
+                  aria-hidden="true"
+                  className="size-4 animate-spin motion-reduce:animate-none"
+                />
+              ) : (
+                <ArrowRightLeft aria-hidden="true" className="size-4" />
+              )}
+              {isStageChangePending ? '저장 중 · 변경' : '단계 변경'}
             </Button>
           ) : null}
         </div>
