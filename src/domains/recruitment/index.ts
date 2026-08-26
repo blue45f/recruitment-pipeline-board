@@ -1,1 +1,1 @@
-export { RecruitmentFoundation } from './foundation/RecruitmentFoundation'
+export { RecruitmentBoard } from './board'

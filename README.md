@@ -2,7 +2,7 @@
 
 지원자의 채용 단계를 한 화면에서 확인하고 관리하는 프런트엔드 과제입니다. 기능을 작은 단위로 구현하고, 각 단계에서 사용한 프롬프트와 검증 결과를 함께 남깁니다.
 
-현재는 애플리케이션 골격과 자동 검증 환경, 후보자 데이터 계약, Mock API와 검증된 API 클라이언트, 공용 디자인 시스템까지 구성한 상태입니다. 보드 기능은 다음 커밋부터 순서대로 연결합니다.
+현재는 애플리케이션 골격과 자동 검증 환경, 후보자 데이터 계약, Mock API와 검증된 API 클라이언트, 공용 디자인 시스템 위에 다섯 단계 보드 레이아웃을 연결한 상태입니다. 후보자 목록과 조회 상태는 다음 기능부터 차례로 추가합니다.
 
 ## 실행 방법
 
@@ -12,6 +12,12 @@ pnpm dev
 ```
 
 전체 정적 검사와 테스트는 `pnpm check`, 브라우저 테스트는 `pnpm e2e:ci`로 실행합니다.
+
+### 현재 구현된 화면
+
+- `서류검토 → 면접 → 처우협의 → 최종합격 / 불합격` 순서의 5단계 보드
+- 데스크톱의 5열 보기와 모바일 보드 내부 가로 탐색
+- 키보드 포커스를 받을 수 있는 보드 스크롤 영역
 
 ### Mock API
 
@@ -36,7 +42,7 @@ SonarQube Community Build의 공식 최소 사양에 맞춰 Docker에 4GB 이상
 - React 19, Vite 8, TypeScript, React Compiler
 - React Router, TanStack Query, Zustand
 - Ky, MSW, Zod, React Hook Form
-- Tailwind CSS, Radix UI
+- Tailwind CSS, Radix UI, TanStack Virtual
 - Vitest, Testing Library, Cypress, Storybook
 - ESLint, Prettier, Secretlint, Knip
 - SonarQube Community Build
