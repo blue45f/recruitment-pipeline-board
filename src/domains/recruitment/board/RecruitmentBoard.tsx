@@ -1,5 +1,6 @@
 import {
   QueryErrorResetBoundary,
+  useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
 import { Layers3, RadioTower } from 'lucide-react'
@@ -7,7 +8,11 @@ import { Suspense, useDeferredValue, useRef } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useSearchParams } from 'react-router'
 
-import { candidateListQueryOptions } from '@/domains/recruitment/candidates/query'
+import type { CandidateId } from '@/domains/recruitment/candidates/model'
+import {
+  candidateDetailQueryOptions,
+  candidateListQueryOptions,
+} from '@/domains/recruitment/candidates/query'
 
 import {
   DEFAULT_CANDIDATE_FILTERS,
@@ -16,21 +21,27 @@ import {
   readCandidateFilters,
   writeCandidateFilters,
   type CandidateFilters,
+  useBoardDetailStore,
 } from './model'
 import { BoardErrorFallback } from './ui/BoardErrorFallback'
 import { CandidateBoardSkeleton } from './ui/CandidateBoardSkeleton'
 import { CandidateBoardView } from './ui/CandidateBoardView'
+import { CandidateDetailModal } from './ui/CandidateDetailModal'
 import { CandidateEmptyState } from './ui/CandidateEmptyState'
 import { CandidateFilters as CandidateFiltersForm } from './ui/CandidateFilters'
 
 type CandidateBoardContentProps = Readonly<{
   filters: CandidateFilters
   onClearFilters: (inputMethod: 'keyboard' | 'pointer') => void
+  onOpenCandidate: (candidateId: CandidateId) => void
+  onPrefetchCandidate: (candidateId: CandidateId) => void
 }>
 
 function CandidateBoardContent({
   filters,
   onClearFilters,
+  onOpenCandidate,
+  onPrefetchCandidate,
 }: CandidateBoardContentProps) {
   const { data: response } = useSuspenseQuery(candidateListQueryOptions(200))
   const candidates = response.data
@@ -71,6 +82,8 @@ function CandidateBoardContent({
       </div>
       <CandidateBoardView
         candidatesByStage={groupCandidatesByStage(filteredCandidates)}
+        onOpenCandidate={onOpenCandidate}
+        onPrefetchCandidate={onPrefetchCandidate}
       />
     </>
   )
@@ -79,6 +92,8 @@ function CandidateBoardContent({
 export function RecruitmentBoard() {
   const boardRegionRef = useRef<HTMLElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const queryClient = useQueryClient()
+  const openCandidate = useBoardDetailStore((state) => state.openCandidate)
   const [searchParams, setSearchParams] = useSearchParams()
   const filters = readCandidateFilters(searchParams)
   const deferredQuery = useDeferredValue(filters.query)
@@ -164,6 +179,12 @@ export function RecruitmentBoard() {
                       }
                       updateFilters(DEFAULT_CANDIDATE_FILTERS)
                     }}
+                    onOpenCandidate={openCandidate}
+                    onPrefetchCandidate={(candidateId) => {
+                      void queryClient.prefetchQuery(
+                        candidateDetailQueryOptions(candidateId),
+                      )
+                    }}
                   />
                 </Suspense>
               </ErrorBoundary>
@@ -171,6 +192,7 @@ export function RecruitmentBoard() {
           </QueryErrorResetBoundary>
         </section>
       </div>
+      <CandidateDetailModal fallbackFocusRef={boardRegionRef} />
     </main>
   )
 }

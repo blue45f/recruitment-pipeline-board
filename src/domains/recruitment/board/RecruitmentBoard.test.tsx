@@ -22,6 +22,7 @@ import {
 import { ApiError } from '@/domains/recruitment/candidates/api'
 import { server } from '@/mocks/server'
 
+import { useBoardDetailStore } from './model'
 import { RecruitmentBoard } from './RecruitmentBoard'
 
 const queryClients = new Set<QueryClient>()
@@ -85,7 +86,9 @@ function renderBoard({
   retry = false,
 }: RenderBoardOptions = {}) {
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry, retryDelay: 0 } },
+    defaultOptions: {
+      queries: { retry, retryDelay: 0, staleTime: 30_000 },
+    },
   })
   queryClients.add(queryClient)
 
@@ -111,6 +114,8 @@ beforeAll(() => {
 })
 
 afterEach(() => {
+  useBoardDetailStore.setState({ selectedCandidateId: null })
+
   for (const queryClient of queryClients) {
     queryClient.clear()
   }
@@ -398,5 +403,199 @@ describe('RecruitmentBoard', () => {
     expect(screen.getByRole('searchbox', { name: '후보자 검색' })).toHaveFocus()
     expect(currentSearchParams().get('query')).toBeNull()
     expect(requestCount).toBe(1)
+  })
+
+  it('의도 기반 상세 요청을 클릭 뒤에도 공유하고 닫을 때 원래 카드로 돌아간다', async () => {
+    const user = userEvent.setup()
+    const candidate = FILTER_CANDIDATES[0]
+    const detailResponseGate = createDeferred()
+    let detailRequestCount = 0
+
+    server.use(
+      http.get('*/api/candidates', () =>
+        HttpResponse.json({
+          data: FILTER_CANDIDATES,
+          meta: { total: FILTER_CANDIDATES.length },
+        }),
+      ),
+      http.get('*/api/candidates/:candidateId', async ({ params }) => {
+        detailRequestCount += 1
+        expect(params.candidateId).toBe(candidate.id)
+        await detailResponseGate.promise
+
+        return HttpResponse.json({ data: candidate })
+      }),
+    )
+
+    renderBoard()
+
+    const cardButton = await screen.findByRole('button', {
+      name: new RegExp(`^${candidate.name} 후보자,`),
+    })
+
+    cardButton.focus()
+    await waitFor(() => expect(detailRequestCount).toBe(1))
+    await user.keyboard('{Enter}')
+
+    const dialog = await screen.findByRole('dialog', {
+      name: `${candidate.name} 후보자 상세`,
+    })
+
+    expect(dialog).toHaveAccessibleDescription(
+      `${candidate.name} 후보자의 지원 정보와 현재 채용 단계를 확인합니다.`,
+    )
+    expect(
+      within(dialog).getByRole('status', {
+        name: '후보자 상세 정보를 불러오는 중입니다',
+      }),
+    ).toBeInTheDocument()
+    expect(detailRequestCount).toBe(1)
+
+    detailResponseGate.resolve()
+
+    expect(
+      await within(dialog).findByRole('region', {
+        name: `${candidate.name} 후보자 상세 정보`,
+      }),
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByRole('status', {
+        name: `${candidate.name} 후보자 상세 정보를 불러왔습니다.`,
+      }),
+    ).toBeInTheDocument()
+    expect(detailRequestCount).toBe(1)
+
+    await user.keyboard('{Escape}')
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(cardButton).toHaveFocus()
+    })
+
+    await user.click(cardButton)
+    await screen.findByRole('dialog', {
+      name: `${candidate.name} 후보자 상세`,
+    })
+    await user.click(screen.getByRole('button', { name: '닫기' }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(cardButton).toHaveFocus()
+    })
+    expect(detailRequestCount).toBe(1)
+  })
+
+  it('상세 조회 오류를 모달 안에서 안전하게 처리하고 키보드 재시도로 복구한다', async () => {
+    const user = userEvent.setup()
+    const candidate = FILTER_CANDIDATES[0]
+    const internalMessage = 'detail database password leaked from upstream'
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined)
+    let detailRequestCount = 0
+
+    server.use(
+      http.get('*/api/candidates', () =>
+        HttpResponse.json({
+          data: FILTER_CANDIDATES,
+          meta: { total: FILTER_CANDIDATES.length },
+        }),
+      ),
+      http.get('*/api/candidates/:candidateId', () => {
+        detailRequestCount += 1
+
+        if (detailRequestCount === 1) {
+          return HttpResponse.json(
+            { message: internalMessage },
+            {
+              headers: { 'x-request-id': 'detail-error-1' },
+              status: 503,
+            },
+          )
+        }
+
+        return HttpResponse.json({ data: candidate })
+      }),
+    )
+
+    try {
+      renderBoard()
+      await user.click(
+        await screen.findByRole('button', {
+          name: new RegExp(`^${candidate.name} 후보자,`),
+        }),
+      )
+
+      const dialog = await screen.findByRole('dialog', {
+        name: `${candidate.name} 후보자 상세`,
+      })
+      const errorAlert = await within(dialog).findByRole('alert')
+
+      expect(errorAlert).toHaveTextContent('상세 정보를 불러오지 못했어요')
+      expect(errorAlert).toHaveTextContent(
+        '서버가 잠시 불안정합니다. 잠시 후 다시 시도해 주세요.',
+      )
+      expect(errorAlert).not.toHaveTextContent(internalMessage)
+      expect(screen.getByText('김백엔드')).toBeInTheDocument()
+
+      const retryButton = within(errorAlert).getByRole('button', {
+        name: '다시 시도',
+      })
+      retryButton.focus()
+      await user.keyboard('{Enter}')
+
+      expect(screen.getByTestId('candidate-detail-content')).toHaveFocus()
+      expect(
+        await within(dialog).findByRole('region', {
+          name: `${candidate.name} 후보자 상세 정보`,
+        }),
+      ).toBeInTheDocument()
+      expect(detailRequestCount).toBe(2)
+    } finally {
+      consoleError.mockRestore()
+    }
+  })
+
+  it('찾을 수 없는 후보자 상세에는 재시도를 노출하지 않는다', async () => {
+    const user = userEvent.setup()
+    const candidate = FILTER_CANDIDATES[0]
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined)
+
+    server.use(
+      http.get('*/api/candidates', () =>
+        HttpResponse.json({
+          data: FILTER_CANDIDATES,
+          meta: { total: FILTER_CANDIDATES.length },
+        }),
+      ),
+      http.get('*/api/candidates/:candidateId', () =>
+        HttpResponse.json(
+          { message: 'internal candidate lookup detail' },
+          { status: 404 },
+        ),
+      ),
+    )
+
+    try {
+      renderBoard()
+      const cardButton = await screen.findByRole('button', {
+        name: new RegExp(`^${candidate.name} 후보자,`),
+      })
+      await user.click(cardButton)
+
+      const errorAlert = await screen.findByRole('alert')
+
+      expect(errorAlert).toHaveTextContent('지원자를 찾을 수 없습니다.')
+      expect(
+        within(errorAlert).queryByRole('button', { name: '다시 시도' }),
+      ).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: '닫기' }))
+      await waitFor(() => expect(cardButton).toHaveFocus())
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 })

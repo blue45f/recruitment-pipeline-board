@@ -8,3 +8,4 @@ export {
 } from './candidateFilters'
 export type { CandidateFilters } from './candidateFilters'
 export { groupCandidatesByStage } from './groupCandidatesByStage'
+export { useBoardDetailStore } from './useBoardDetailStore'

@@ -2,6 +2,7 @@
 import {
   CANDIDATE_STAGES,
   type Candidate,
+  type CandidateId,
   type CandidateStage,
 } from '@/domains/recruitment/candidates/model'
 
@@ -9,10 +10,14 @@ import { CandidateStageColumn } from './CandidateStageColumn'
 
 export type CandidateBoardViewProps = Readonly<{
   candidatesByStage: Record<CandidateStage, readonly Candidate[]>
+  onOpenCandidate: (candidateId: CandidateId) => void
+  onPrefetchCandidate?: (candidateId: CandidateId) => void
 }>
 
 export function CandidateBoardView({
   candidatesByStage,
+  onOpenCandidate,
+  onPrefetchCandidate,
 }: CandidateBoardViewProps) {
   return (
     <div
@@ -26,6 +31,10 @@ export function CandidateBoardView({
           <CandidateStageColumn
             candidates={candidatesByStage[stage]}
             key={stage}
+            onOpenCandidate={onOpenCandidate}
+            {...(onPrefetchCandidate === undefined
+              ? {}
+              : { onPrefetchCandidate })}
             stage={stage}
           />
         ))}

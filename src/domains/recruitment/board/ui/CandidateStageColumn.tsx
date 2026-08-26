@@ -1,6 +1,7 @@
 import {
   CANDIDATE_STAGE_LABELS,
   type Candidate,
+  type CandidateId,
   type CandidateStage,
 } from '@/domains/recruitment/candidates/model'
 
@@ -9,11 +10,15 @@ import { CANDIDATE_STAGE_PRESENTATION } from './candidateStagePresentation'
 
 export type CandidateStageColumnProps = Readonly<{
   candidates: readonly Candidate[]
+  onOpenCandidate: (candidateId: CandidateId) => void
+  onPrefetchCandidate?: (candidateId: CandidateId) => void
   stage: CandidateStage
 }>
 
 export function CandidateStageColumn({
   candidates,
+  onOpenCandidate,
+  onPrefetchCandidate,
   stage,
 }: CandidateStageColumnProps) {
   const stageLabel = CANDIDATE_STAGE_LABELS[stage]
@@ -62,7 +67,13 @@ export function CandidateStageColumn({
         ) : null}
         {candidates.map((candidate) => (
           <div key={candidate.id} role="listitem">
-            <CandidateCard candidate={candidate} />
+            <CandidateCard
+              candidate={candidate}
+              onOpenCandidate={onOpenCandidate}
+              {...(onPrefetchCandidate === undefined
+                ? {}
+                : { onPrefetchCandidate })}
+            />
           </div>
         ))}
       </div>
