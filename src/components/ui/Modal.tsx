@@ -1,9 +1,11 @@
 import { X } from 'lucide-react'
 import { Dialog } from 'radix-ui'
-import type { ReactElement, ReactNode } from 'react'
+import type { ComponentProps, ReactElement, ReactNode } from 'react'
 
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/classNames'
+
+type DialogContentProps = ComponentProps<typeof Dialog.Content>
 
 export type ModalProps = Readonly<{
   children: ReactNode
@@ -12,6 +14,7 @@ export type ModalProps = Readonly<{
   defaultOpen?: boolean
   description: ReactNode
   footer?: ReactNode
+  onCloseAutoFocus?: DialogContentProps['onCloseAutoFocus']
   onOpenChange?: (open: boolean) => void
   open?: boolean
   title: ReactNode
@@ -25,6 +28,7 @@ export function Modal({
   defaultOpen,
   description,
   footer,
+  onCloseAutoFocus,
   onOpenChange,
   open,
   title,
@@ -40,6 +44,7 @@ export function Modal({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-70 bg-[rgba(24,32,51,0.48)] opacity-0 backdrop-blur-[2px] transition-opacity data-[state=open]:opacity-100 motion-reduce:transition-none" />
         <Dialog.Content
+          {...(onCloseAutoFocus === undefined ? {} : { onCloseAutoFocus })}
           className={cn(
             'fixed top-1/2 left-1/2 z-80 flex max-h-[min(46rem,calc(100dvh-2rem))] w-[min(42rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 scale-[0.98] flex-col overflow-hidden rounded-2xl border border-[var(--color-line)] bg-[var(--color-paper)] text-[var(--color-ink)] opacity-0 shadow-[0_24px_80px_rgba(24,32,51,0.24)] transition-[opacity,transform] outline-none focus-visible:ring-3 focus-visible:ring-[var(--color-focus)] data-[state=open]:scale-100 data-[state=open]:opacity-100 motion-reduce:transition-none',
             className,
