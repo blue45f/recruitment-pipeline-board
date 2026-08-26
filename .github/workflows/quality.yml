@@ -16,13 +16,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -44,25 +44,34 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     container:
-      image: cypress/browsers:node-24.19.0-chrome-151.0.7922.137-1-ff-154.0-edge-151.0.4129.93-1
-      options: --user 1001
+      # cypress/browsers: node 24.19.0, Chrome 151.0.7922.137-1 (linux/amd64)
+      image: cypress/browsers@sha256:8534396ae613dd6b3071191b2ab97a256f49b04ceaa4218e1444d8ee0ecbff31
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+
+      - name: Install Korean font
+        run: |
+          apt-get update
+          apt-get install --yes --no-install-recommends fonts-noto-cjk=1:20240730+repack1-1
+          fc-cache --force
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Install Cypress binary
+        run: pnpm exec cypress install
 
       - name: Compare visual snapshots
         run: pnpm visual:ci
 
       - name: Upload visual diff
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: visual-regression-diff
           if-no-files-found: ignore

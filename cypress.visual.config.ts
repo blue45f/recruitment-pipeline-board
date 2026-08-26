@@ -17,8 +17,10 @@ export default defineConfig({
       configureVisualRegression(on)
       on('before:browser:launch', (browser, launchOptions) => {
         if (browser.family === 'chromium' && browser.isHeadless) {
-          launchOptions.args.push('--force-device-scale-factor=1')
-          launchOptions.args.push('--window-size=1600,1100')
+          launchOptions.args.push(
+            '--force-device-scale-factor=1',
+            '--window-size=1600,1100',
+          )
         }
 
         return launchOptions
