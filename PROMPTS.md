@@ -745,3 +745,57 @@
 - 기본 axe 검사에 포함되지 않는 `label-content-name-mismatch` 규칙을 보드 Cypress에서 명시적으로 켰다. production Lighthouse 접근성 점수는 100점이었고 같은 규칙의 위반은 0건이었다.
 - 가상 목록 검사는 root font-size를 32px로 높여 200% 텍스트 확대에서 카드 겹침과 문서 가로 넘침이 없고 axe 위반도 없는지 확인했다. 이는 브라우저 자체 확대가 아니라 텍스트 확대 회귀라는 범위로 기록한다.
 - `pnpm check`에서 format, ESLint, Secretlint, Knip, 애플리케이션과 Cypress 타입 검사, production build, Vitest 40개 파일의 283개 테스트와 Storybook build가 모두 통과했다. Chrome 151 production Cypress의 보드 3개, 상세 2개, 단계 이동 13개와 가상 목록 5개도 모두 통과했다.
+
+## [release-readiness] 제출 전 실행·배포 확인
+
+### 프롬프트 1
+
+> 모든 과제 완료되면 벡셀에도 배포하고 url도 리드미 문서에 남겨줘
+
+### 프롬프트 2
+
+> 내부브라우저 테스트도 잘 활용해줘
+
+### 프롬프트 3
+
+> 과제의 커밋과 프롬프트 룰 잘 확인해서 커밋해줘
+
+### 프롬프트 4
+
+> 적절한 타이밍에 mr 머지 진행해줘
+
+### AI 출력 요지
+
+- 필수 기능 일곱 가지와 도전 요구사항 다섯 가지를 구현 코드와 테스트, 실제 브라우저 결과에 다시 대조한다. 구현 여부를 문서 문구만으로 판단하지 않는다.
+- 공개 Vercel production 주소를 만들고 README와 GitHub 저장소 홈페이지에 같은 주소를 연결한다. 별도 백엔드는 배포하지 않고 HTTPS에서 Mock Service Worker가 목록, 상세, 단계 이동과 영속 저장을 제공한다.
+- 기존 커밋이나 프롬프트 기록을 다시 쓰지 않는다. 기능 PR과 후속 리뷰·검증 커밋을 같은 작업 흐름으로 묶어 공개 히스토리에서 PROMPTS 기록까지 따라갈 수 있게 한다.
+- 자동 접근성 검사와 실제 보조기기 검증은 구분한다. axe, Lighthouse와 키보드 회귀 결과는 기록하지만 수행하지 않은 VoiceOver 검증이나 WCAG 전체 적합성을 완료했다고 표현하지 않는다.
+
+### 커밋과 프롬프트 대응
+
+| 작업 흐름            | 기능 커밋            | PROMPTS 기록                                    |
+| -------------------- | -------------------- | ----------------------------------------------- |
+| 프로젝트 기반        | `c5d73b1`            | 프로젝트 기반 구성                              |
+| PR #1 후보자 계약    | `da551fa`            | `[candidate-contracts]`                         |
+| PR #2 Mock·API 경계  | `df9be81`–`ec75a03`  | `[mock-api]`, `[api-client]`, 후속 리뷰         |
+| PR #3 디자인 시스템  | `ee02849`–`a8bcffe`  | `[design-system]`, 후속 리뷰                    |
+| PR #4 조회·보드·상세 | `109d410`–`f774620`  | `[candidate-query]`부터 `[detail-panel]`까지    |
+| PR #5 시각 회귀      | `aedc67d`–`8a62ff8`  | `[visual-regression]`, 후속 리뷰                |
+| PR #6 가상 목록      | `9dc3a1b`–`51a12e2`  | `[virtualization]`                              |
+| PR #7 단계 변경      | `fac1fdd`–`6d032e3`  | `[stage-move]`, 후속 리뷰와 화면 승인           |
+| PR #8 낙관적 이동    | `2f7e22f`–`15fe1ef`  | `[optimistic-update]`, `[move-race]`, 후속 리뷰 |
+| PR #9 Undo           | `34d698e`–`32cdd68`  | `[undo]`, 후속 리뷰                             |
+| PR #10 드래그 이동   | `9f2772f`–`f5d8810`  | `[drag-and-drop]`, 후속 리뷰와 화면 승인        |
+| PR #11 최종 감사     | `bca22f1`, `007dbd6` | `[performance-a11y]`, `[release-readiness]`     |
+
+### 리뷰 / 검증
+
+- `007dbd6`을 별도 임시 디렉터리에 single-branch clone했다. Node 24.16.0과 pnpm 11.4.0에서 `pnpm install --frozen-lockfile`과 `pnpm check`가 통과했고 복제본 작업 트리에는 변경이 남지 않았다. production build, Vitest 40개 파일의 283개 테스트와 Storybook build를 같은 복제본에서 다시 확인했다.
+- PR #11의 GitHub Actions 실행 `33015409842`에서 Quality와 Cypress smoke가 3분 32초에 통과했다. 이어서 Ubuntu 24.04, Chrome 151과 Noto CJK를 고정한 시각 회귀가 1분 33초에 통과했다. SonarCloud Quality Gate도 새 이슈와 Security Hotspot 없이 통과했다.
+- CodeRabbit의 첫 전체 리뷰 요청은 사용량 제한으로 실행되지 않아 검토 결과로 세지 않았다. 제한이 풀린 뒤 같은 PR HEAD에 두 번째 전체 리뷰를 요청해 완료했다. 한 건의 낮은 우선순위 의견은 단계 변경 버튼을 선택한다는 전제가 실제 selector와 달랐다. 해당 코드는 `data-candidate-id`가 있는 상세 버튼을 선택하고 그 버튼에 `data-candidate-name`도 이미 있으므로 속성을 중복하지 않았다. 로컬과 공개 배포 Cypress 결과를 근거로 답변하고 thread를 해결했다.
+- Vercel 배포는 Ready 상태이며 `https://recruitment-pipeline-board-blue45fs-projects.vercel.app/`을 production alias로 사용한다. 배포 보호를 해제한 비로그인 요청에서 루트는 HTML 200, `mockServiceWorker.js`는 JavaScript 200을 반환했다. 서버 함수가 없는 정적 배포라 Vercel error log는 없었고 내부 브라우저 console의 error와 warning도 0건이었다.
+- 내부 브라우저에서 기본 200명, 후보자 상세 응답, 드래그로 서류검토에서 면접 이동, 같은 서버 receipt로 Undo, 명시적 이동 뒤 새로고침 영속성, 1,000명 전환을 확인했다. 1,000명 상태에서 실제 DOM의 후보자 상세 버튼은 30개였고 단계별 가상 목록은 다섯 개였다.
+- 공개 배포 URL을 대상으로 Chrome 151 Cypress 전체를 다시 실행했다. 보드 3개, 상세 2개, 단계 이동 13개, 가상 목록 5개를 합친 23개 시나리오가 모두 통과했으며 드래그 이동 Undo, 실패 복구, 연속 이동, 1,000명과 200% 텍스트 확대를 포함한다.
+- 모든 원격 ref의 patch를 Secretlint로 검사해 발견 0건을 확인했다. 저장소는 public이고 기본 브랜치는 `main`이다.
+- App 청크는 minify 기준 579.02kB여서 Vite의 500kB 경고가 남는다. 첫 화면은 작은 entry와 부팅 골격이 먼저 표시되고 App은 동적 import하므로 제출을 막는 오류는 아니지만 후속 기능이 늘면 상세와 대화상자 단위 분리를 다시 검토한다.
+- 자동 의미·대비 검사와 키보드 회귀는 통과했지만 실제 VoiceOver 발화 검증은 수행하지 않았다. 따라서 전체 보조기기 적합성을 자동 검사 결과만으로 단정하지 않는다.
