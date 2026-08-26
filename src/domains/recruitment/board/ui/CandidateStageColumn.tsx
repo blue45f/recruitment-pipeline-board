@@ -10,16 +10,20 @@ import { VirtualizedCandidateList } from './VirtualizedCandidateList'
 
 export type CandidateStageColumnProps = Readonly<{
   candidates: readonly Candidate[]
+  onChangeStage: (candidate: Candidate) => void
   onOpenCandidate: (candidateId: CandidateId) => void
   onPrefetchCandidate?: (candidateId: CandidateId) => void
+  pendingCandidateIds: ReadonlySet<CandidateId>
   scrollResetKey: string
   stage: CandidateStage
 }>
 
 export function CandidateStageColumn({
   candidates,
+  onChangeStage,
   onOpenCandidate,
   onPrefetchCandidate,
+  pendingCandidateIds,
   scrollResetKey,
   stage,
 }: CandidateStageColumnProps) {
@@ -61,8 +65,9 @@ export function CandidateStageColumn({
       </div>
 
       <p className="sr-only" id={navigationDescriptionId}>
-        위아래 화살표로 이전 또는 다음 후보자로 이동하고 Home과 End로 처음과
-        마지막 후보자로 이동할 수 있습니다.
+        위아래 화살표로 이전 또는 다음 후보자로 이동하고, 좌우 화살표로 상세
+        보기와 단계 변경 액션을 전환합니다. Home과 End로 처음과 마지막 후보자로
+        이동할 수 있습니다.
       </p>
       {candidates.length === 0 ? (
         <div className="h-[34rem] p-3">
@@ -76,7 +81,9 @@ export function CandidateStageColumn({
           descriptionId={navigationDescriptionId}
           key={scrollResetKey}
           label={`${stageLabel} 후보자 ${candidates.length.toLocaleString('ko-KR')}명`}
+          onChangeStage={onChangeStage}
           onOpenCandidate={onOpenCandidate}
+          pendingCandidateIds={pendingCandidateIds}
           {...prefetchCandidateProps}
         />
       )}

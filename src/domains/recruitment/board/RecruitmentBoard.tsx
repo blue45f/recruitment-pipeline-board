@@ -4,11 +4,12 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query'
 import { Layers3, RadioTower } from 'lucide-react'
-import { Suspense, useDeferredValue, useRef } from 'react'
+import { Suspense, useDeferredValue, useRef, useState } from 'react'
 import { ErrorBoundary } from 'react-error-boundary'
 import { useSearchParams } from 'react-router'
 
 import type {
+  Candidate,
   CandidateId,
   CandidateListSize,
 } from '@/domains/recruitment/candidates/model'
@@ -26,6 +27,7 @@ import {
   type CandidateFilters,
   useBoardDetailStore,
   useBoardPreferencesStore,
+  useCandidateStageMove,
 } from './model'
 import { BoardErrorFallback } from './ui/BoardErrorFallback'
 import { CandidateBoardSkeleton } from './ui/CandidateBoardSkeleton'
@@ -33,21 +35,26 @@ import { CandidateBoardView } from './ui/CandidateBoardView'
 import { CandidateDetailModal } from './ui/CandidateDetailModal'
 import { CandidateEmptyState } from './ui/CandidateEmptyState'
 import { CandidateFilters as CandidateFiltersForm } from './ui/CandidateFilters'
+import { CandidateStageChangeDialog } from './ui/CandidateStageChangeDialog'
 
 type CandidateBoardContentProps = Readonly<{
   filters: CandidateFilters
   listSize: CandidateListSize
   onClearFilters: (inputMethod: 'keyboard' | 'pointer') => void
+  onChangeStage: (candidate: Candidate) => void
   onOpenCandidate: (candidateId: CandidateId) => void
   onPrefetchCandidate: (candidateId: CandidateId) => void
+  pendingCandidateIds: ReadonlySet<CandidateId>
 }>
 
 function CandidateBoardContent({
   filters,
   listSize,
   onClearFilters,
+  onChangeStage,
   onOpenCandidate,
   onPrefetchCandidate,
+  pendingCandidateIds,
 }: CandidateBoardContentProps) {
   const { data: response } = useSuspenseQuery(
     candidateListQueryOptions(listSize),
@@ -90,8 +97,10 @@ function CandidateBoardContent({
       </div>
       <CandidateBoardView
         candidatesByStage={groupCandidatesByStage(filteredCandidates)}
+        onChangeStage={onChangeStage}
         onOpenCandidate={onOpenCandidate}
         onPrefetchCandidate={onPrefetchCandidate}
+        pendingCandidateIds={pendingCandidateIds}
         scrollResetKey={`${listSize}:${filters.query}:${filters.role}`}
       />
     </>
@@ -101,7 +110,10 @@ function CandidateBoardContent({
 export function RecruitmentBoard() {
   const boardRegionRef = useRef<HTMLElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const [stageChangeCandidate, setStageChangeCandidate] =
+    useState<Candidate | null>(null)
   const queryClient = useQueryClient()
+  const { moveCandidate, pendingCandidateIds } = useCandidateStageMove()
   const openCandidate = useBoardDetailStore((state) => state.openCandidate)
   const listSize = useBoardPreferencesStore((state) => state.listSize)
   const setListSize = useBoardPreferencesStore((state) => state.setListSize)
@@ -197,12 +209,14 @@ export function RecruitmentBoard() {
                       }
                       updateFilters(DEFAULT_CANDIDATE_FILTERS)
                     }}
+                    onChangeStage={setStageChangeCandidate}
                     onOpenCandidate={openCandidate}
                     onPrefetchCandidate={(candidateId) => {
                       void queryClient.prefetchQuery(
                         candidateDetailQueryOptions(candidateId),
                       )
                     }}
+                    pendingCandidateIds={pendingCandidateIds}
                   />
                 </Suspense>
               </ErrorBoundary>
@@ -210,7 +224,19 @@ export function RecruitmentBoard() {
           </QueryErrorResetBoundary>
         </section>
       </div>
-      <CandidateDetailModal fallbackFocusRef={boardRegionRef} />
+      <CandidateDetailModal
+        fallbackFocusRef={boardRegionRef}
+        onChangeStage={setStageChangeCandidate}
+        pendingCandidateIds={pendingCandidateIds}
+      />
+      {stageChangeCandidate ? (
+        <CandidateStageChangeDialog
+          candidate={stageChangeCandidate}
+          fallbackFocusRef={boardRegionRef}
+          onClose={() => setStageChangeCandidate(null)}
+          onMoveCandidate={moveCandidate}
+        />
+      ) : null}
     </main>
   )
 }

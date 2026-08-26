@@ -48,7 +48,7 @@ describe('recruitment board layout', () => {
     cy.contains('label', /^표시할 데이터$/)
       .invoke('attr', 'id')
       .then((labelId) => {
-        cy.get(`[role="combobox"][aria-labelledby="${labelId}"]`).then(
+        cy.get(`[role="combobox"][aria-labelledby~="${labelId}"]`).then(
           ($listSizeSelect) => {
             cy.contains('button', /^필터 초기화$/).then(($resetButton) => {
               const selectRect = $listSizeSelect.get(0).getBoundingClientRect()

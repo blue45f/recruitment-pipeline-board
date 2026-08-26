@@ -10,15 +10,21 @@ import { CandidateStageColumn } from './CandidateStageColumn'
 
 export type CandidateBoardViewProps = Readonly<{
   candidatesByStage: Record<CandidateStage, readonly Candidate[]>
+  onChangeStage: (candidate: Candidate) => void
   onOpenCandidate: (candidateId: CandidateId) => void
   onPrefetchCandidate?: (candidateId: CandidateId) => void
+  pendingCandidateIds?: ReadonlySet<CandidateId>
   scrollResetKey?: string
 }>
 
+const EMPTY_PENDING_CANDIDATE_IDS = new Set<CandidateId>()
+
 export function CandidateBoardView({
   candidatesByStage,
+  onChangeStage,
   onOpenCandidate,
   onPrefetchCandidate,
+  pendingCandidateIds = EMPTY_PENDING_CANDIDATE_IDS,
   scrollResetKey = 'initial',
 }: CandidateBoardViewProps) {
   return (
@@ -34,11 +40,13 @@ export function CandidateBoardView({
             <CandidateStageColumn
               candidates={candidatesByStage[stage]}
               key={stage}
+              onChangeStage={onChangeStage}
               onOpenCandidate={onOpenCandidate}
               {...(onPrefetchCandidate === undefined
                 ? {}
                 : { onPrefetchCandidate })}
               scrollResetKey={scrollResetKey}
+              pendingCandidateIds={pendingCandidateIds}
               stage={stage}
             />
           ))}

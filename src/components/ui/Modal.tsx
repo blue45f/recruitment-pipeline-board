@@ -10,11 +10,13 @@ type DialogContentProps = ComponentProps<typeof Dialog.Content>
 export type ModalProps = Readonly<{
   children: ReactNode
   className?: string
+  closeDisabled?: boolean
   closeLabel?: string
   defaultOpen?: boolean
   description: ReactNode
   footer?: ReactNode
   onCloseAutoFocus?: DialogContentProps['onCloseAutoFocus']
+  onOpenAutoFocus?: DialogContentProps['onOpenAutoFocus']
   onOpenChange?: (open: boolean) => void
   open?: boolean
   title: ReactNode
@@ -24,11 +26,13 @@ export type ModalProps = Readonly<{
 export function Modal({
   children,
   className,
+  closeDisabled = false,
   closeLabel = '닫기',
   defaultOpen,
   description,
   footer,
   onCloseAutoFocus,
+  onOpenAutoFocus,
   onOpenChange,
   open,
   title,
@@ -45,10 +49,21 @@ export function Modal({
         <Dialog.Overlay className="fixed inset-0 z-70 bg-[rgba(24,32,51,0.48)] opacity-0 backdrop-blur-[2px] transition-opacity data-[state=open]:opacity-100 motion-reduce:transition-none" />
         <Dialog.Content
           {...(onCloseAutoFocus === undefined ? {} : { onCloseAutoFocus })}
+          {...(onOpenAutoFocus === undefined ? {} : { onOpenAutoFocus })}
           className={cn(
             'fixed top-1/2 left-1/2 z-80 flex max-h-[min(46rem,calc(100dvh-2rem))] w-[min(42rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 scale-[0.98] flex-col overflow-hidden rounded-2xl border border-[var(--color-line)] bg-[var(--color-paper)] text-[var(--color-ink)] opacity-0 shadow-[0_24px_80px_rgba(24,32,51,0.24)] transition-[opacity,transform] outline-none focus-visible:ring-3 focus-visible:ring-[var(--color-focus)] data-[state=open]:scale-100 data-[state=open]:opacity-100 motion-reduce:transition-none',
             className,
           )}
+          onEscapeKeyDown={(event) => {
+            if (closeDisabled) {
+              event.preventDefault()
+            }
+          }}
+          onPointerDownOutside={(event) => {
+            if (closeDisabled) {
+              event.preventDefault()
+            }
+          }}
         >
           <header className="relative border-b border-[var(--color-line)] px-6 py-5 pr-16">
             <Dialog.Title className="text-lg font-bold tracking-[-0.02em] text-[var(--color-ink)]">
@@ -61,6 +76,7 @@ export function Modal({
               <Button
                 aria-label={closeLabel}
                 className="absolute top-3.5 right-3.5"
+                disabled={closeDisabled}
                 size="icon"
                 variant="ghost"
               >

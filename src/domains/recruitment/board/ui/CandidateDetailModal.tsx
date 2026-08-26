@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { ApiError } from '@/domains/recruitment/candidates/api'
 import type {
+  Candidate,
   CandidateId,
   CandidateListResponse,
 } from '@/domains/recruitment/candidates/model'
@@ -109,7 +110,13 @@ function CandidateDetailErrorFallback({
 
 function CandidateDetailContent({
   candidateId,
-}: Readonly<{ candidateId: CandidateId }>) {
+  onChangeStage,
+  pendingCandidateIds,
+}: Readonly<{
+  candidateId: CandidateId
+  onChangeStage?: (candidate: Candidate) => void
+  pendingCandidateIds: ReadonlySet<CandidateId>
+}>) {
   const { data: response } = useSuspenseQuery(
     candidateDetailQueryOptions(candidateId),
   )
@@ -123,17 +130,27 @@ function CandidateDetailContent({
       >
         {response.data.name} 후보자 상세 정보를 불러왔습니다.
       </p>
-      <CandidateDetailView candidate={response.data} />
+      <CandidateDetailView
+        candidate={response.data}
+        isStageChangePending={pendingCandidateIds.has(response.data.id)}
+        {...(onChangeStage === undefined ? {} : { onChangeStage })}
+      />
     </>
   )
 }
 
 export type CandidateDetailModalProps = Readonly<{
   fallbackFocusRef: RefObject<HTMLElement | null>
+  onChangeStage?: (candidate: Candidate) => void
+  pendingCandidateIds?: ReadonlySet<CandidateId>
 }>
+
+const EMPTY_PENDING_CANDIDATE_IDS = new Set<CandidateId>()
 
 export function CandidateDetailModal({
   fallbackFocusRef,
+  onChangeStage,
+  pendingCandidateIds = EMPTY_PENDING_CANDIDATE_IDS,
 }: CandidateDetailModalProps) {
   const detailPanelRef = useRef<HTMLDivElement>(null)
   const restoreFocusCandidateId = useRef<CandidateId | null>(null)
@@ -209,7 +226,11 @@ export function CandidateDetailModal({
                 resetKeys={[selectedCandidateId]}
               >
                 <Suspense fallback={<CandidateDetailSkeleton />}>
-                  <CandidateDetailContent candidateId={selectedCandidateId} />
+                  <CandidateDetailContent
+                    candidateId={selectedCandidateId}
+                    {...(onChangeStage === undefined ? {} : { onChangeStage })}
+                    pendingCandidateIds={pendingCandidateIds}
+                  />
                 </Suspense>
               </ErrorBoundary>
             )}

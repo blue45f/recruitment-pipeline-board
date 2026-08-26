@@ -17,10 +17,10 @@ import type {
   CandidateId,
 } from '@/domains/recruitment/candidates/model'
 
-import { CandidateCard } from './CandidateCard'
+import { CandidateCard, type CandidateCardAction } from './CandidateCard'
 
 const DEFAULT_ROOT_FONT_SIZE = 16
-const CANDIDATE_CARD_MIN_HEIGHT_REM = 10
+const CANDIDATE_CARD_ESTIMATED_HEIGHT_REM = 14
 const CANDIDATE_CARD_GAP_REM = 0.75
 const CANDIDATE_LIST_HEIGHT_REM = 34
 const CANDIDATE_LIST_WIDTH_REM = 18
@@ -56,14 +56,24 @@ function extractRangeWithActiveCandidate(
   )
 }
 
-type CandidateNavigationKey = 'ArrowDown' | 'ArrowUp' | 'End' | 'Home'
+type CandidateNavigationKey =
+  'ArrowDown' | 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'End' | 'Home'
+
+type CandidateTraversalKey = 'ArrowDown' | 'ArrowUp' | 'End' | 'Home'
 
 function isCandidateNavigationKey(key: string): key is CandidateNavigationKey {
-  return ['ArrowDown', 'ArrowUp', 'End', 'Home'].includes(key)
+  return [
+    'ArrowDown',
+    'ArrowLeft',
+    'ArrowRight',
+    'ArrowUp',
+    'End',
+    'Home',
+  ].includes(key)
 }
 
 function getTargetCandidateIndex(
-  key: CandidateNavigationKey,
+  key: CandidateTraversalKey,
   currentIndex: number,
   candidateCount: number,
 ) {
@@ -83,20 +93,34 @@ export type VirtualizedCandidateListProps = Readonly<{
   candidates: readonly Candidate[]
   descriptionId: string
   label: string
+  onChangeStage: (candidate: Candidate) => void
   onOpenCandidate: (candidateId: CandidateId) => void
   onPrefetchCandidate?: (candidateId: CandidateId) => void
+  pendingCandidateIds: ReadonlySet<CandidateId>
 }>
 
 export function VirtualizedCandidateList({
   candidates,
   descriptionId,
   label,
+  onChangeStage,
   onOpenCandidate,
   onPrefetchCandidate,
+  pendingCandidateIds,
 }: VirtualizedCandidateListProps) {
   const scrollElementRef = useRef<HTMLUListElement>(null)
-  const candidateButtons = useRef(new Map<CandidateId, HTMLButtonElement>())
-  const pendingFocusCandidateId = useRef<CandidateId | null>(null)
+  const candidateDetailButtons = useRef(
+    new Map<CandidateId, HTMLButtonElement>(),
+  )
+  const candidateStageButtons = useRef(
+    new Map<CandidateId, HTMLButtonElement>(),
+  )
+  const pendingFocus = useRef<{
+    action: CandidateCardAction
+    candidateId: CandidateId
+  } | null>(null)
+  const [activeAction, setActiveAction] =
+    useState<CandidateCardAction>('detail')
   const [activeCandidateId, setActiveCandidateId] =
     useState<CandidateId | null>(null)
   const [rootFontSize, setRootFontSize] = useState(getRootFontSize)
@@ -108,7 +132,8 @@ export function VirtualizedCandidateList({
   const activeCandidateIndex = candidates.findIndex(
     ({ id }) => id === resolvedActiveCandidateId,
   )
-  const estimatedCandidateHeight = rootFontSize * CANDIDATE_CARD_MIN_HEIGHT_REM
+  const estimatedCandidateHeight =
+    rootFontSize * CANDIDATE_CARD_ESTIMATED_HEIGHT_REM
   const candidateGap = rootFontSize * CANDIDATE_CARD_GAP_REM
 
   useEffect(() => {
@@ -149,22 +174,26 @@ export function VirtualizedCandidateList({
   const virtualCandidates = virtualizer.getVirtualItems()
 
   useLayoutEffect(() => {
-    const pendingCandidateId = pendingFocusCandidateId.current
+    const pendingTarget = pendingFocus.current
 
-    if (!pendingCandidateId) {
+    if (!pendingTarget) {
       return
     }
 
-    const candidateButton = candidateButtons.current.get(pendingCandidateId)
+    const candidateButton =
+      pendingTarget.action === 'detail'
+        ? candidateDetailButtons.current.get(pendingTarget.candidateId)
+        : candidateStageButtons.current.get(pendingTarget.candidateId)
 
     if (candidateButton) {
-      pendingFocusCandidateId.current = null
+      pendingFocus.current = null
       candidateButton.focus({ preventScroll: true })
     }
   })
 
   const moveFocus = (
     candidateId: CandidateId,
+    action: CandidateCardAction,
     event: KeyboardEvent<HTMLButtonElement>,
   ) => {
     if (!isCandidateNavigationKey(event.key)) {
@@ -179,6 +208,22 @@ export function VirtualizedCandidateList({
 
     event.preventDefault()
 
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      const targetAction =
+        event.key === 'ArrowLeft' || pendingCandidateIds.has(candidateId)
+          ? 'detail'
+          : 'stage'
+
+      if (targetAction === action) {
+        return
+      }
+
+      pendingFocus.current = { action: targetAction, candidateId }
+      setActiveAction(targetAction)
+      setActiveCandidateId(candidateId)
+      return
+    }
+
     const targetIndex = getTargetCandidateIndex(
       event.key,
       currentIndex,
@@ -190,7 +235,16 @@ export function VirtualizedCandidateList({
       return
     }
 
-    pendingFocusCandidateId.current = targetCandidate.id
+    const targetAction =
+      action === 'stage' && pendingCandidateIds.has(targetCandidate.id)
+        ? 'detail'
+        : action
+
+    pendingFocus.current = {
+      action: targetAction,
+      candidateId: targetCandidate.id,
+    }
+    setActiveAction(targetAction)
     setActiveCandidateId(targetCandidate.id)
     virtualizer.scrollToIndex(targetIndex, { align: 'auto' })
   }
@@ -244,7 +298,7 @@ export function VirtualizedCandidateList({
     const nextFocusedElement = event.relatedTarget
 
     if (
-      pendingFocusCandidateId.current ||
+      pendingFocus.current ||
       (nextFocusedElement instanceof Node &&
         event.currentTarget.contains(nextFocusedElement))
     ) {
@@ -276,6 +330,10 @@ export function VirtualizedCandidateList({
           return null
         }
 
+        const resolvedActiveAction = pendingCandidateIds.has(candidate.id)
+          ? 'detail'
+          : activeAction
+
         return (
           <li
             aria-posinset={virtualCandidate.index + 1}
@@ -293,24 +351,38 @@ export function VirtualizedCandidateList({
             }}
           >
             <CandidateCard
-              buttonRef={(button) => {
+              {...(candidate.id === resolvedActiveCandidateId
+                ? { activeAction: resolvedActiveAction }
+                : {})}
+              detailButtonRef={(button) => {
                 if (button) {
-                  candidateButtons.current.set(candidate.id, button)
+                  candidateDetailButtons.current.set(candidate.id, button)
                 } else {
-                  candidateButtons.current.delete(candidate.id)
+                  candidateDetailButtons.current.delete(candidate.id)
                 }
               }}
               candidate={candidate}
+              isStageChangePending={pendingCandidateIds.has(candidate.id)}
               {...(candidate.id === resolvedActiveCandidateId
                 ? { keyboardNavigationDescriptionId: descriptionId }
                 : {})}
-              onCandidateFocus={setActiveCandidateId}
+              onCandidateActionFocus={(candidateId, action) => {
+                setActiveAction(action)
+                setActiveCandidateId(candidateId)
+              }}
               onCandidateKeyDown={moveFocus}
+              onChangeStage={onChangeStage}
               onOpenCandidate={openCandidate}
               {...(onPrefetchCandidate === undefined
                 ? {}
                 : { onPrefetchCandidate })}
-              tabIndex={candidate.id === resolvedActiveCandidateId ? 0 : -1}
+              stageChangeButtonRef={(button) => {
+                if (button) {
+                  candidateStageButtons.current.set(candidate.id, button)
+                } else {
+                  candidateStageButtons.current.delete(candidate.id)
+                }
+              }}
             />
           </li>
         )

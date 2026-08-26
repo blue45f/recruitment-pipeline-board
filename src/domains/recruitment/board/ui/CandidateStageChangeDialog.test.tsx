@@ -1,0 +1,125 @@
+import { createRef } from 'react'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
+
+import { ApiError } from '@/domains/recruitment/candidates/api'
+import type {
+  Candidate,
+  CandidateStage,
+} from '@/domains/recruitment/candidates/model'
+
+import { CandidateStageChangeDialog } from './CandidateStageChangeDialog'
+
+const candidate: Candidate = {
+  id: 'candidate-stage-dialog',
+  name: '김이동',
+  role: 'frontend_engineer',
+  appliedAt: '2026-08-20T00:00:00.000Z',
+  currentStage: 'document_review',
+  email: 'move-dialog@example.com',
+  experienceYears: 5,
+  memo: '단계 변경 다이얼로그 테스트',
+  stageChangedAt: '2026-08-20T00:00:00.000Z',
+  revision: 1,
+}
+
+type MoveCandidate = (
+  sourceCandidate: Candidate,
+  stage: CandidateStage,
+) => Promise<Candidate>
+
+function renderDialog(onMoveCandidate: MoveCandidate) {
+  const fallbackFocusRef = createRef<HTMLElement>()
+  const onClose = vi.fn()
+
+  render(
+    <>
+      <section ref={fallbackFocusRef} tabIndex={-1} />
+      <CandidateStageChangeDialog
+        candidate={candidate}
+        fallbackFocusRef={fallbackFocusRef}
+        onClose={onClose}
+        onMoveCandidate={onMoveCandidate}
+      />
+    </>,
+  )
+
+  return { onClose }
+}
+
+describe('CandidateStageChangeDialog', () => {
+  it('현재 단계를 제외한 네 목적 단계와 유효성 오류를 제공한다', async () => {
+    const user = userEvent.setup()
+    const onMoveCandidate = vi.fn<MoveCandidate>()
+
+    renderDialog(onMoveCandidate)
+
+    const dialog = screen.getByRole('dialog', {
+      name: '김이동 후보자 단계 변경',
+    })
+
+    expect(within(dialog).getAllByRole('radio')).toHaveLength(4)
+    expect(
+      within(dialog).queryByRole('radio', { name: '서류검토' }),
+    ).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('radio', { name: '면접' })).toHaveFocus()
+
+    await user.click(within(dialog).getByRole('button', { name: '변경하기' }))
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      '이동할 단계를 선택해 주세요.',
+    )
+    expect(onMoveCandidate).not.toHaveBeenCalled()
+  })
+
+  it('키보드로 목적 단계를 선택해 저장하고 완료 뒤 닫는다', async () => {
+    const user = userEvent.setup()
+    const updatedCandidate: Candidate = {
+      ...candidate,
+      currentStage: 'interview',
+      revision: 2,
+    }
+    const onMoveCandidate = vi.fn().mockResolvedValue(updatedCandidate)
+    const { onClose } = renderDialog(onMoveCandidate)
+    const interview = screen.getByRole('radio', { name: '면접' })
+
+    interview.focus()
+    await user.keyboard(' ')
+    await user.click(screen.getByRole('button', { name: '변경하기' }))
+
+    await waitFor(() => {
+      expect(onMoveCandidate).toHaveBeenCalledExactlyOnceWith(
+        candidate,
+        'interview',
+      )
+      expect(onClose).toHaveBeenCalledOnce()
+    })
+  })
+
+  it('서버 오류 원문 대신 안전한 메시지를 폼 안에 표시한다', async () => {
+    const user = userEvent.setup()
+    const internalMessage = 'database password from upstream'
+    const onMoveCandidate = vi.fn().mockRejectedValue(
+      new ApiError({
+        kind: 'http',
+        status: 503,
+        requestId: 'request-stage-dialog',
+        retryable: false,
+        safeMessage: '서버가 잠시 불안정합니다. 잠시 후 다시 시도해 주세요.',
+        cause: new Error(internalMessage),
+      }),
+    )
+    const { onClose } = renderDialog(onMoveCandidate)
+
+    await user.click(screen.getByRole('radio', { name: '면접' }))
+    await user.click(screen.getByRole('button', { name: '변경하기' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(
+      '서버가 잠시 불안정합니다. 잠시 후 다시 시도해 주세요.',
+    )
+    expect(alert).not.toHaveTextContent(internalMessage)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+})

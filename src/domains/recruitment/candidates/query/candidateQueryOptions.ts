@@ -23,6 +23,7 @@ export const candidateQueryKeys = {
   lists: () => [...candidateQueryKeys.all, 'list'] as const,
   list: (size: CandidateListSize) =>
     [...candidateQueryKeys.lists(), size] as const,
+  stageUpdates: () => [...candidateQueryKeys.all, 'stage-update'] as const,
 }
 
 export function candidateListQueryOptions(size: CandidateListSize) {
