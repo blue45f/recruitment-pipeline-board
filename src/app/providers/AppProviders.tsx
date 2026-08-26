@@ -6,13 +6,16 @@ import { ErrorBoundary } from 'react-error-boundary'
 import { Toaster } from 'sonner'
 
 import { AppErrorFallback } from '@/app/providers/AppErrorFallback'
+import { CandidateMovementProvider } from '@/domains/recruitment'
 import { queryClient } from '@/lib/query/queryClient'
 
 export function AppProviders({ children }: PropsWithChildren) {
   return (
     <ErrorBoundary FallbackComponent={AppErrorFallback}>
       <QueryClientProvider client={queryClient}>
-        <Tooltip.Provider delayDuration={300}>{children}</Tooltip.Provider>
+        <CandidateMovementProvider>
+          <Tooltip.Provider delayDuration={300}>{children}</Tooltip.Provider>
+        </CandidateMovementProvider>
         <Toaster
           closeButton
           position="bottom-center"

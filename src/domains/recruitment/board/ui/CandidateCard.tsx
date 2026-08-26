@@ -1,4 +1,4 @@
-import { ArrowRightLeft, CalendarDays } from 'lucide-react'
+import { ArrowRightLeft, CalendarDays, LoaderCircle } from 'lucide-react'
 import { useEffect, useRef, type KeyboardEvent, type Ref } from 'react'
 
 import { Badge } from '@/components/ui/Badge'
@@ -163,11 +163,14 @@ export function CandidateCard({
               ? 'ArrowLeft ArrowRight ArrowUp ArrowDown Home End'
               : undefined
           }
-          aria-label={`${candidate.name} 후보자 단계 변경`}
+          aria-busy={isStageChangePending || undefined}
+          aria-label={
+            isStageChangePending
+              ? `${candidate.name} 후보자 저장 중 · 변경`
+              : `${candidate.name} 후보자 단계 변경`
+          }
           className="w-full"
           data-stage-change-candidate-id={candidate.id}
-          loading={isStageChangePending}
-          loadingLabel={`${candidate.name} 후보자 단계 저장 중`}
           onClick={() => onChangeStage(candidate)}
           onFocus={() => onCandidateActionFocus?.(candidate.id, 'stage')}
           onKeyDown={(event) =>
@@ -178,8 +181,15 @@ export function CandidateCard({
           tabIndex={activeAction === 'stage' ? 0 : -1}
           variant="ghost"
         >
-          <ArrowRightLeft aria-hidden="true" className="size-4" />
-          단계 변경
+          {isStageChangePending ? (
+            <LoaderCircle
+              aria-hidden="true"
+              className="size-4 animate-spin motion-reduce:animate-none"
+            />
+          ) : (
+            <ArrowRightLeft aria-hidden="true" className="size-4" />
+          )}
+          {isStageChangePending ? '저장 중 · 변경' : '단계 변경'}
         </Button>
       </div>
     </article>

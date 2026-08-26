@@ -3,20 +3,21 @@ import type { QueryClient } from '@tanstack/react-query'
 import type {
   Candidate,
   CandidateDetailResponse,
+  CandidateId,
   CandidateListResponse,
 } from '../model'
-import { candidateQueryKeys } from './candidateQueryOptions'
+import { candidateQueryKeys } from './candidateQueryKeys'
 
-function mergeCandidateInList(
+function replaceCandidateInList(
   response: CandidateListResponse | undefined,
-  incomingCandidate: Candidate,
+  canonicalCandidate: Candidate,
 ) {
   if (response === undefined) {
     return undefined
   }
 
   const candidateIndex = response.data.findIndex(
-    ({ id }) => id === incomingCandidate.id,
+    ({ id }) => id === canonicalCandidate.id,
   )
 
   if (candidateIndex < 0) {
@@ -27,37 +28,100 @@ function mergeCandidateInList(
 
   if (
     currentCandidate === undefined ||
-    incomingCandidate.revision <= currentCandidate.revision
+    currentCandidate === canonicalCandidate ||
+    currentCandidate.revision > canonicalCandidate.revision
   ) {
     return response
   }
 
   const data = [...response.data]
-  data[candidateIndex] = incomingCandidate
+  data[candidateIndex] = canonicalCandidate
 
   return { ...response, data }
+}
+
+export function findLatestConfirmedCandidateInCache(
+  queryClient: QueryClient,
+  candidateId: CandidateId,
+) {
+  const detailResponse = queryClient.getQueryData<CandidateDetailResponse>(
+    candidateQueryKeys.detail(candidateId),
+  )
+  const loadedListResponses = queryClient.getQueriesData<CandidateListResponse>(
+    {
+      queryKey: candidateQueryKeys.lists(),
+    },
+  )
+  let latestCandidate = detailResponse?.data
+
+  for (const [, response] of loadedListResponses) {
+    const listCandidate = response?.data.find(({ id }) => id === candidateId)
+
+    if (
+      listCandidate !== undefined &&
+      (latestCandidate === undefined ||
+        listCandidate.revision > latestCandidate.revision)
+    ) {
+      latestCandidate = listCandidate
+    }
+  }
+
+  return latestCandidate
+}
+
+function findCanonicalCandidate(
+  queryClient: QueryClient,
+  incomingCandidate: Candidate,
+) {
+  const cachedCandidate = findLatestConfirmedCandidateInCache(
+    queryClient,
+    incomingCandidate.id,
+  )
+
+  if (
+    cachedCandidate !== undefined &&
+    cachedCandidate.revision >= incomingCandidate.revision
+  ) {
+    return cachedCandidate
+  }
+
+  return incomingCandidate
 }
 
 export function mergeConfirmedCandidateInCache(
   queryClient: QueryClient,
   incomingCandidate: Candidate,
 ) {
-  queryClient.setQueriesData<CandidateListResponse>(
-    { queryKey: candidateQueryKeys.lists() },
-    (response) => mergeCandidateInList(response, incomingCandidate),
+  const canonicalCandidate = findCanonicalCandidate(
+    queryClient,
+    incomingCandidate,
   )
 
+  queryClient.setQueriesData<CandidateListResponse>(
+    { queryKey: candidateQueryKeys.lists() },
+    (response) => replaceCandidateInList(response, canonicalCandidate),
+  )
+
+  const detailQueryKey = candidateQueryKeys.detail(incomingCandidate.id)
+  const detailResponse =
+    queryClient.getQueryData<CandidateDetailResponse>(detailQueryKey)
+
+  if (detailResponse === undefined) {
+    return
+  }
+
   queryClient.setQueryData<CandidateDetailResponse>(
-    candidateQueryKeys.detail(incomingCandidate.id),
+    detailQueryKey,
     (response) => {
       if (
         response === undefined ||
-        incomingCandidate.revision <= response.data.revision
+        response.data === canonicalCandidate ||
+        response.data.revision > canonicalCandidate.revision
       ) {
         return response
       }
 
-      return { data: incomingCandidate }
+      return { ...response, data: canonicalCandidate }
     },
   )
 }

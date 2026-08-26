@@ -1,7 +1,10 @@
 export { candidateIdSchema, candidateSchema } from './candidate'
 export type { Candidate, CandidateId } from './candidate'
 export {
+  CANDIDATE_API_ERROR_CODES,
   CANDIDATE_LIST_SIZES,
+  candidateApiErrorCodeSchema,
+  candidateApiErrorResponseSchema,
   candidateDetailRequestSchema,
   candidateDetailResponseSchema,
   candidateListRequestSchema,
@@ -9,8 +12,11 @@ export {
   candidateListSizeSchema,
   candidateStageUpdateRequestSchema,
   candidateStageUpdateResponseSchema,
+  clientMutationIdSchema,
 } from './candidateContracts'
 export type {
+  CandidateApiErrorCode,
+  CandidateApiErrorResponse,
   CandidateDetailRequest,
   CandidateDetailResponse,
   CandidateListRequest,

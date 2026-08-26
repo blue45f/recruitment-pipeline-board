@@ -24,7 +24,7 @@ import {
 } from '@/domains/recruitment/candidates/model'
 import { installVirtualizedListDomMocks } from '@/test/installVirtualizedListDomMocks'
 
-import { groupCandidatesByStage } from '../model'
+import { groupCandidatesByStage, projectCandidateStages } from '../model'
 import { CandidateBoardView } from './CandidateBoardView'
 import { formatCandidateCompactDate } from './formatCandidateDate'
 
@@ -281,11 +281,12 @@ describe('CandidateBoardView', () => {
     expect(firstCandidateButton).toHaveFocus()
   })
 
-  it('단계 변경이 진행 중인 후보자는 상세 액션을 유일한 tab stop으로 유지한다', async () => {
+  it('저장 중에도 단계 액션으로 이동해 다음 변경을 입력할 수 있다', async () => {
     const user = userEvent.setup()
     const candidates = generateCandidateFixtures({ seed: 42, size: 200 })
     const candidatesByStage = groupCandidatesByStage(candidates)
     const firstCandidate = candidatesByStage.document_review[0]
+    const onChangeStage = vi.fn()
 
     if (!firstCandidate) {
       throw new Error('진행 중 상태를 검증할 후보자를 찾지 못했습니다.')
@@ -294,7 +295,7 @@ describe('CandidateBoardView', () => {
     render(
       <CandidateBoardView
         candidatesByStage={candidatesByStage}
-        onChangeStage={vi.fn()}
+        onChangeStage={onChangeStage}
         onOpenCandidate={vi.fn()}
         pendingCandidateIds={new Set([firstCandidate.id])}
       />,
@@ -307,10 +308,11 @@ describe('CandidateBoardView', () => {
       name: new RegExp(`^${firstCandidate.name} 후보자,`),
     })
     const stageChangeButton = within(list).getByRole('button', {
-      name: `${firstCandidate.name} 후보자 단계 저장 중`,
+      name: `${firstCandidate.name} 후보자 저장 중 · 변경`,
     })
 
-    expect(stageChangeButton).toBeDisabled()
+    expect(stageChangeButton).toBeEnabled()
+    expect(stageChangeButton).toHaveAttribute('aria-busy', 'true')
     expect(detailButton).toHaveAttribute('tabindex', '0')
     expect(stageChangeButton).toHaveAttribute('tabindex', '-1')
     expect(
@@ -322,7 +324,78 @@ describe('CandidateBoardView', () => {
     detailButton.focus()
     await user.keyboard('{ArrowRight}')
 
-    expect(detailButton).toHaveFocus()
+    expect(stageChangeButton).toHaveFocus()
+    expect(detailButton).toHaveAttribute('tabindex', '-1')
+    expect(stageChangeButton).toHaveAttribute('tabindex', '0')
+
+    await user.keyboard('{Enter}')
+
+    expect(onChangeStage).toHaveBeenCalledWith(firstCandidate)
+  })
+
+  it('가상 범위 밖 목적 열로 이동한 후보자를 스크롤해 포커스를 복구한다', async () => {
+    const candidates = generateCandidateFixtures({
+      seed: 20260826,
+      size: 1_000,
+    })
+    const initialCandidatesByStage = groupCandidatesByStage(candidates)
+    const candidate = initialCandidatesByStage.document_review.at(-1)
+
+    if (!candidate) {
+      throw new Error('목적 열 포커스를 검증할 후보자를 찾지 못했습니다.')
+    }
+
+    const { rerender } = render(
+      <CandidateBoardView
+        candidatesByStage={initialCandidatesByStage}
+        onChangeStage={vi.fn()}
+        onOpenCandidate={vi.fn()}
+      />,
+    )
+    const projectedCandidates = projectCandidateStages(
+      candidates,
+      new Map([[candidate.id, 'interview']]),
+    )
+
+    rerender(
+      <CandidateBoardView
+        candidatesByStage={groupCandidatesByStage(projectedCandidates)}
+        focusRequest={{ candidateId: candidate.id, requestId: 1 }}
+        onChangeStage={vi.fn()}
+        onOpenCandidate={vi.fn()}
+        pendingCandidateIds={new Set([candidate.id])}
+      />,
+    )
+
+    const targetList = screen.getByRole('list', {
+      name: '면접 후보자 201명',
+    })
+    const targetButton = await within(targetList).findByRole('button', {
+      name: `${candidate.name} 후보자 저장 중 · 변경`,
+    })
+    const targetItem = within(targetList)
+      .getAllByRole('listitem')
+      .find(
+        (item) =>
+          within(item).queryByRole('button', {
+            name: `${candidate.name} 후보자 저장 중 · 변경`,
+          }) === targetButton,
+      )
+
+    await waitFor(() => {
+      expect(targetButton).toHaveFocus()
+    })
+    expect(targetButton).toHaveAttribute('tabindex', '0')
+    expect(targetItem).toHaveAttribute('aria-setsize', '201')
+    expect(Number(targetItem?.getAttribute('aria-posinset'))).toBeGreaterThan(1)
+    expect(
+      screen.getAllByRole('list').every(
+        (list) =>
+          within(list)
+            .getAllByRole('button')
+            .filter((button) => button.tabIndex === 0).length === 1,
+      ),
+    ).toBe(true)
   })
 
   it('검색 조건을 나타내는 key가 바뀔 때 각 단계의 스크롤을 처음으로 돌린다', () => {

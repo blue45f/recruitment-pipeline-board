@@ -3,17 +3,21 @@ import type { CandidateListSize } from '../../src/domains/recruitment/candidates
 
 type StableMockApiVisitOptions = Readonly<{
   listSize?: CandidateListSize
+  mockRandomValues?: readonly number[]
   rootFontSizePx?: number
   storageMode?: 'preserve' | 'reset'
 }>
 
 export function visitRecruitmentBoardWithStableMockApi({
   listSize,
+  mockRandomValues,
   rootFontSizePx,
   storageMode = 'reset',
 }: StableMockApiVisitOptions = {}) {
   return cy.visit('/', {
     onBeforeLoad(window) {
+      let mockRandomValueIndex = 0
+
       if (storageMode === 'reset') {
         window.localStorage.clear()
       }
@@ -33,7 +37,11 @@ export function visitRecruitmentBoardWithStableMockApi({
         configurable: true,
         value<T extends ArrayBufferView | null>(values: T) {
           if (values !== null) {
-            Reflect.set(values, 0, 0xffffffff)
+            const nextValue =
+              mockRandomValues?.[mockRandomValueIndex] ?? 0xffffffff
+
+            mockRandomValueIndex += 1
+            Reflect.set(values, 0, nextValue)
           }
 
           return values

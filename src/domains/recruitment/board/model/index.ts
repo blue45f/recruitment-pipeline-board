@@ -12,10 +12,17 @@ export {
   type CandidateStageChangeFormValues,
 } from './candidateStageChangeForm'
 export { BOARD_PREFERENCES_STORAGE_KEY } from './boardPreferences'
-export { groupCandidatesByStage } from './groupCandidatesByStage'
 export {
-  getCandidateStageMoveErrorMessage,
-  useCandidateStageMove,
+  projectCandidateStage,
+  projectCandidateStages,
+  type CandidateStageProjection,
+} from './candidateStageProjection'
+export { groupCandidatesByStage } from './groupCandidatesByStage'
+export { useCandidateStageMove } from './useCandidateStageMove'
+export type {
+  CandidateStageMoveFailure,
+  CandidateStageMoveVerificationResolution,
+  CandidateStageMoveVerificationRequired,
 } from './useCandidateStageMove'
 export { useBoardDetailStore } from './useBoardDetailStore'
 export { useBoardPreferencesStore } from './useBoardPreferencesStore'

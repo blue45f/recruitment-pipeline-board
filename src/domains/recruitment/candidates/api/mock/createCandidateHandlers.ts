@@ -1,6 +1,7 @@
 import { delay, http, HttpResponse, type RequestHandler } from 'msw'
 
 import {
+  candidateApiErrorResponseSchema,
   candidateDetailRequestSchema,
   candidateDetailResponseSchema,
   candidateListRequestSchema,
@@ -8,8 +9,12 @@ import {
   candidateStageUpdateRequestSchema,
   candidateStageUpdateResponseSchema,
   type CandidateListSize,
+  type CandidateApiErrorCode,
 } from '../../model'
-import type { CandidateMockRepository } from './candidateMockRepository'
+import type {
+  CandidateMockRepository,
+  CandidateStageCommitResult,
+} from './candidateMockRepository'
 
 const LIST_SIZE_BY_QUERY = {
   '0': 0,
@@ -38,7 +43,7 @@ type CreateCandidateHandlersOptions = {
 
 type ErrorResponseOptions = {
   status: number
-  code: string
+  code: CandidateApiErrorCode
   requestId: string
   retryable: boolean
   safeMessage?: string
@@ -87,19 +92,41 @@ function errorResponse({
   safeMessage = DEFAULT_SAFE_MESSAGE,
 }: ErrorResponseOptions) {
   return HttpResponse.json(
-    {
+    candidateApiErrorResponseSchema.parse({
       error: {
         code,
         message: safeMessage,
         requestId,
         retryable,
       },
-    },
+    }),
     {
       status,
       headers: { 'x-request-id': requestId },
     },
   )
+}
+
+function stageUpdateSuccessResponse(
+  result: Extract<
+    CandidateStageCommitResult,
+    { status: 'updated' | 'replayed' }
+  >,
+  currentRequestId: string,
+) {
+  const response = candidateStageUpdateResponseSchema.parse({
+    data: result.receipt.candidate,
+    meta: {
+      // A replay returns the same response body as the original commit. The
+      // header below still correlates this individual transport request.
+      requestId: result.receipt.requestId,
+      clientMutationId: result.receipt.clientMutationId,
+    },
+  })
+
+  return HttpResponse.json(response, {
+    headers: { 'x-request-id': currentRequestId },
+  })
 }
 
 function candidateIdFromParams(
@@ -251,16 +278,33 @@ export function createCandidateHandlers({
           })
         }
 
-        const failureResponse = await simulateNetwork(requestId)
-        if (failureResponse !== undefined) return failureResponse
-
+        await wait(latency())
+        const operationTime = now().toISOString()
+        const operation = {
+          candidateId: parsedCandidateId.data.candidateId,
+          currentStage: parsedBody.data.stage,
+          expectedRevision: parsedBody.data.expectedRevision,
+          clientMutationId: parsedBody.data.clientMutationId,
+        }
         try {
-          const result = repository.commitStage({
-            candidateId: parsedCandidateId.data.candidateId,
-            currentStage: parsedBody.data.stage,
-            expectedRevision: parsedBody.data.expectedRevision,
-            stageChangedAt: now().toISOString(),
-          })
+          const result = await repository.commitStageExclusive(
+            {
+              ...operation,
+              requestId,
+              stageChangedAt: operationTime,
+              committedAt: operationTime,
+            },
+            shouldFail(),
+          )
+
+          if (result.status === 'transient-rejection') {
+            return errorResponse({
+              status: 503,
+              code: 'SIMULATED_FAILURE',
+              requestId,
+              retryable: true,
+            })
+          }
 
           if (result.status === 'not-found') {
             return errorResponse({
@@ -272,7 +316,7 @@ export function createCandidateHandlers({
             })
           }
 
-          if (result.status === 'conflict') {
+          if (result.status === 'revision-conflict') {
             return errorResponse({
               status: 409,
               code: 'REVISION_CONFLICT',
@@ -282,17 +326,17 @@ export function createCandidateHandlers({
             })
           }
 
-          const response = candidateStageUpdateResponseSchema.parse({
-            data: result.candidate,
-            meta: {
+          if (result.status === 'idempotency-conflict') {
+            return errorResponse({
+              status: 409,
+              code: 'IDEMPOTENCY_KEY_CONFLICT',
               requestId,
-              clientMutationId: parsedBody.data.clientMutationId,
-            },
-          })
+              retryable: false,
+              safeMessage: '같은 요청 식별자가 다른 변경에 사용되었습니다.',
+            })
+          }
 
-          return HttpResponse.json(response, {
-            headers: { 'x-request-id': requestId },
-          })
+          return stageUpdateSuccessResponse(result, requestId)
         } catch {
           return errorResponse({
             status: 503,

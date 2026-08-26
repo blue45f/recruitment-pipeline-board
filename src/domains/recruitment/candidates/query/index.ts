@@ -1,4 +1,11 @@
-export { mergeConfirmedCandidateInCache } from './candidateCache'
+export {
+  findLatestConfirmedCandidateInCache,
+  mergeConfirmedCandidateInCache,
+} from './candidateCache'
+export {
+  reconcileCandidateDetailResponse,
+  reconcileCandidateListResponse,
+} from './candidateStructuralSharing'
 export {
   candidateDetailQueryOptions,
   candidateListQueryOptions,

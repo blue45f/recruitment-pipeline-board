@@ -28,6 +28,7 @@ type ChildButtonProps = ButtonSharedProps & {
 export type ButtonProps = NativeButtonProps | ChildButtonProps
 
 export function Button({
+  'aria-busy': ariaBusy,
   'aria-label': ariaLabel,
   asChild = false,
   children,
@@ -50,7 +51,12 @@ export function Button({
     }
 
     return (
-      <Slot.Root aria-label={ariaLabel} className={classes} {...props}>
+      <Slot.Root
+        aria-busy={ariaBusy || undefined}
+        aria-label={ariaLabel}
+        className={classes}
+        {...props}
+      >
         {children}
       </Slot.Root>
     )
@@ -59,7 +65,7 @@ export function Button({
   return (
     <button
       {...props}
-      aria-busy={loading || undefined}
+      aria-busy={loading || ariaBusy || undefined}
       aria-label={loading ? loadingLabel : ariaLabel}
       className={classes}
       disabled={disabled || loading}

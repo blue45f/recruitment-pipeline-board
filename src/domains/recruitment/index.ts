@@ -1,1 +1,1 @@
-export { RecruitmentBoard } from './board'
+export { CandidateMovementProvider, RecruitmentBoard } from './board'

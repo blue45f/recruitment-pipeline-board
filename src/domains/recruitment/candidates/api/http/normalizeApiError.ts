@@ -1,5 +1,9 @@
 import { isHTTPError, isNetworkError, isTimeoutError } from 'ky'
 
+import {
+  candidateApiErrorResponseSchema,
+  type CandidateApiErrorCode,
+} from '../../model'
 import { ApiError } from './ApiError'
 
 export type ApiOperation = 'query' | 'mutation'
@@ -7,6 +11,8 @@ export type ApiOperation = 'query' | 'mutation'
 const SAFE_MESSAGES = {
   conflict: '다른 변경이 먼저 반영되었습니다. 최신 상태를 확인해 주세요.',
   default: '요청을 처리하지 못했습니다.',
+  idempotencyConflict:
+    '같은 요청 식별자가 다른 단계 변경에 사용되었습니다. 다시 시도해 주세요.',
   network: '네트워크 연결을 확인해 주세요.',
   notFound: '지원자를 찾을 수 없습니다.',
   server: '서버가 잠시 불안정합니다. 잠시 후 다시 시도해 주세요.',
@@ -27,7 +33,19 @@ export function isAbortError(error: unknown) {
   return error instanceof Error && error.name === 'AbortError'
 }
 
-function safeHttpMessage(status: number) {
+function safeErrorCode(data: unknown) {
+  const parsed = candidateApiErrorResponseSchema.safeParse(data)
+
+  return parsed.success ? parsed.data.error.code : undefined
+}
+
+function safeHttpMessage(
+  status: number,
+  code: CandidateApiErrorCode | undefined,
+) {
+  if (code === 'IDEMPOTENCY_KEY_CONFLICT') {
+    return SAFE_MESSAGES.idempotencyConflict
+  }
   if (status === 409) return SAFE_MESSAGES.conflict
   if (status === 404) return SAFE_MESSAGES.notFound
   if (status >= 500) return SAFE_MESSAGES.server
@@ -48,13 +66,15 @@ export function normalizeTransportError(
 
   if (isHTTPError<unknown>(error)) {
     const status = error.response.status
+    const code = safeErrorCode(error.data)
 
     return new ApiError({
       kind: 'http',
+      code,
       status,
       requestId: requestIdFromHeaders(error.response.headers),
       retryable: operation === 'query' && isRetryableHttpStatus(status),
-      safeMessage: safeHttpMessage(status),
+      safeMessage: safeHttpMessage(status, code),
       // Ky 2 already consumed the body into error.data. Keep the HTTPError as
       // diagnostic cause without reading or exposing its untrusted message.
       cause: error,

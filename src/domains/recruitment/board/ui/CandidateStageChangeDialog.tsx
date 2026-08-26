@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowRight } from 'lucide-react'
-import { useId, type RefObject } from 'react'
+import { useId, useState, type RefObject } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/ui/Button'
@@ -14,7 +14,6 @@ import {
 
 import {
   createCandidateStageChangeFormSchema,
-  getCandidateStageMoveErrorMessage,
   type CandidateStageChangeFormValues,
 } from '../model'
 
@@ -22,10 +21,7 @@ export type CandidateStageChangeDialogProps = Readonly<{
   candidate: Candidate
   fallbackFocusRef: RefObject<HTMLElement | null>
   onClose: () => void
-  onMoveCandidate: (
-    candidate: Candidate,
-    stage: CandidateStage,
-  ) => Promise<Candidate>
+  onMoveCandidate: (candidate: Candidate, stage: CandidateStage) => void
 }>
 
 export function CandidateStageChangeDialog({
@@ -35,14 +31,21 @@ export function CandidateStageChangeDialog({
   onMoveCandidate,
 }: CandidateStageChangeDialogProps) {
   const formId = useId()
+  const [openingTrigger] = useState(() => {
+    const activeElement = document.activeElement
+
+    return activeElement instanceof HTMLButtonElement &&
+      activeElement.dataset.stageChangeCandidateId === candidate.id
+      ? activeElement
+      : null
+  })
   const formSchema = createCandidateStageChangeFormSchema(
     candidate.currentStage,
   )
   const {
-    formState: { errors, isSubmitting },
+    formState: { errors },
     handleSubmit,
     register,
-    setError,
   } = useForm<CandidateStageChangeFormValues>({
     resolver: zodResolver(formSchema),
   })
@@ -53,25 +56,30 @@ export function CandidateStageChangeDialog({
 
   return (
     <Modal
-      closeDisabled={isSubmitting}
       description={`${candidate.name} 후보자의 현재 단계는 ${CANDIDATE_STAGE_LABELS[candidate.currentStage]}입니다.`}
       footer={
         <>
-          <Button disabled={isSubmitting} onClick={onClose} variant="ghost">
+          <Button onClick={onClose} variant="ghost">
             취소
           </Button>
-          <Button
-            form={formId}
-            loading={isSubmitting}
-            loadingLabel={`${candidate.name} 후보자 단계 저장 중`}
-            type="submit"
-          >
+          <Button form={formId} type="submit">
             변경하기
             <ArrowRight aria-hidden="true" className="size-4" />
           </Button>
         </>
       }
       onCloseAutoFocus={(event) => {
+        event.preventDefault()
+
+        if (
+          openingTrigger !== null &&
+          openingTrigger.isConnected &&
+          !openingTrigger.disabled
+        ) {
+          openingTrigger.focus()
+          return
+        }
+
         const stageChangeButton = Array.from(
           document.querySelectorAll<HTMLButtonElement>(
             '[data-stage-change-candidate-id]',
@@ -82,10 +90,17 @@ export function CandidateStageChangeDialog({
             !button.disabled,
         )
 
-        event.preventDefault()
-
         if (stageChangeButton) {
           stageChangeButton.focus()
+          return
+        }
+
+        const candidateDetail = Array.from(
+          document.querySelectorAll<HTMLElement>('[data-candidate-detail-id]'),
+        ).find((detail) => detail.dataset.candidateDetailId === candidate.id)
+
+        if (candidateDetail) {
+          candidateDetail.focus()
           return
         }
 
@@ -102,7 +117,7 @@ export function CandidateStageChangeDialog({
         }
       }}
       onOpenChange={(open) => {
-        if (!open && !isSubmitting) {
+        if (!open) {
           onClose()
         }
       }}
@@ -111,28 +126,20 @@ export function CandidateStageChangeDialog({
     >
       <form
         id={formId}
-        onSubmit={handleSubmit(async ({ stage }) => {
-          try {
-            await onMoveCandidate(candidate, stage)
-            onClose()
-          } catch (error) {
-            setError('root.server', {
-              message: getCandidateStageMoveErrorMessage(error),
-              type: 'server',
-            })
-          }
+        onSubmit={handleSubmit(({ stage }) => {
+          onMoveCandidate(candidate, stage)
+          onClose()
         })}
       >
         <fieldset
           aria-describedby={errors.stage ? stageErrorId : undefined}
           className="space-y-3"
-          disabled={isSubmitting}
         >
           <legend className="text-sm font-bold text-[var(--color-ink)]">
             이동할 단계
           </legend>
           <p className="text-sm leading-6 text-[var(--color-muted)]">
-            저장이 끝나면 후보자 카드와 상세 정보에 새 단계가 반영됩니다.
+            선택한 단계는 바로 반영되며, 저장하지 못하면 이전 단계로 돌아갑니다.
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {availableStages.map((stage) => (
@@ -160,15 +167,6 @@ export function CandidateStageChangeDialog({
             </p>
           ) : null}
         </fieldset>
-
-        {errors.root?.server ? (
-          <p
-            className="mt-4 rounded-xl border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-4 py-3 text-sm font-semibold text-[var(--color-danger)]"
-            role="alert"
-          >
-            {errors.root.server.message}
-          </p>
-        ) : null}
       </form>
     </Modal>
   )

@@ -12,6 +12,7 @@ import type {
   Candidate,
   CandidateId,
   CandidateListSize,
+  CandidateStage,
 } from '@/domains/recruitment/candidates/model'
 import {
   candidateDetailQueryOptions,
@@ -22,8 +23,10 @@ import {
   DEFAULT_CANDIDATE_FILTERS,
   filterCandidates,
   groupCandidatesByStage,
+  projectCandidateStages,
   readCandidateFilters,
   writeCandidateFilters,
+  type CandidateStageProjection,
   type CandidateFilters,
   useBoardDetailStore,
   useBoardPreferencesStore,
@@ -32,34 +35,46 @@ import {
 import { BoardErrorFallback } from './ui/BoardErrorFallback'
 import { CandidateBoardSkeleton } from './ui/CandidateBoardSkeleton'
 import { CandidateBoardView } from './ui/CandidateBoardView'
+import type { CandidateBoardFocusRequest } from './ui/candidateBoardFocus'
 import { CandidateDetailModal } from './ui/CandidateDetailModal'
 import { CandidateEmptyState } from './ui/CandidateEmptyState'
 import { CandidateFilters as CandidateFiltersForm } from './ui/CandidateFilters'
 import { CandidateStageChangeDialog } from './ui/CandidateStageChangeDialog'
+import {
+  CandidateStageMoveErrorNotice,
+  CandidateStageMoveVerificationNotice,
+} from './ui/CandidateStageMoveErrorNotice'
 
 type CandidateBoardContentProps = Readonly<{
   filters: CandidateFilters
+  focusRequest?: CandidateBoardFocusRequest
   listSize: CandidateListSize
   onClearFilters: (inputMethod: 'keyboard' | 'pointer') => void
   onChangeStage: (candidate: Candidate) => void
   onOpenCandidate: (candidateId: CandidateId) => void
   onPrefetchCandidate: (candidateId: CandidateId) => void
   pendingCandidateIds: ReadonlySet<CandidateId>
+  stageProjectionByCandidateId: CandidateStageProjection
 }>
 
 function CandidateBoardContent({
   filters,
+  focusRequest,
   listSize,
   onClearFilters,
   onChangeStage,
   onOpenCandidate,
   onPrefetchCandidate,
   pendingCandidateIds,
+  stageProjectionByCandidateId,
 }: CandidateBoardContentProps) {
   const { data: response } = useSuspenseQuery(
     candidateListQueryOptions(listSize),
   )
-  const candidates = response.data
+  const candidates = projectCandidateStages(
+    response.data,
+    stageProjectionByCandidateId,
+  )
 
   if (candidates.length === 0) {
     return <CandidateEmptyState reason="no-candidates" />
@@ -97,6 +112,7 @@ function CandidateBoardContent({
       </div>
       <CandidateBoardView
         candidatesByStage={groupCandidatesByStage(filteredCandidates)}
+        {...(focusRequest === undefined ? {} : { focusRequest })}
         onChangeStage={onChangeStage}
         onOpenCandidate={onOpenCandidate}
         onPrefetchCandidate={onPrefetchCandidate}
@@ -109,12 +125,26 @@ function CandidateBoardContent({
 
 export function RecruitmentBoard() {
   const boardRegionRef = useRef<HTMLElement>(null)
+  const focusRequestSequence = useRef(0)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [stageChangeCandidate, setStageChangeCandidate] =
     useState<Candidate | null>(null)
+  const [focusRequest, setFocusRequest] = useState<CandidateBoardFocusRequest>()
   const queryClient = useQueryClient()
-  const { moveCandidate, pendingCandidateIds } = useCandidateStageMove()
+  const {
+    moveCandidate,
+    pendingCandidateIds,
+    retryCandidate,
+    stageMoveFailureByCandidateId,
+    stageMoveVerificationByCandidateId,
+    stageProjectionByCandidateId,
+    verificationPendingCandidateIds,
+    verifyCandidate,
+  } = useCandidateStageMove()
   const openCandidate = useBoardDetailStore((state) => state.openCandidate)
+  const selectedCandidateId = useBoardDetailStore(
+    (state) => state.selectedCandidateId,
+  )
   const listSize = useBoardPreferencesStore((state) => state.listSize)
   const setListSize = useBoardPreferencesStore((state) => state.setListSize)
   const [searchParams, setSearchParams] = useSearchParams()
@@ -133,6 +163,31 @@ export function RecruitmentBoard() {
   const updateFilters = (nextFilters: CandidateFilters) => {
     setSearchParams(writeCandidateFilters(nextFilters), { replace: true })
   }
+  const requestCandidateStageFocus = (candidateId: CandidateId) => {
+    if (selectedCandidateId === null) {
+      focusRequestSequence.current += 1
+      const nextFocusRequest = {
+        candidateId,
+        requestId: focusRequestSequence.current,
+      }
+
+      window.requestAnimationFrame(() => {
+        setFocusRequest(nextFocusRequest)
+      })
+    }
+  }
+
+  const submitStageMove = (candidate: Candidate, stage: CandidateStage) => {
+    requestCandidateStageFocus(candidate.id)
+
+    moveCandidate(candidate, stage)
+  }
+  const boardStageMoveFailures = Array.from(
+    stageMoveFailureByCandidateId.values(),
+  ).filter(({ candidateId }) => candidateId !== selectedCandidateId)
+  const boardStageMoveVerifications = Array.from(
+    stageMoveVerificationByCandidateId.values(),
+  ).filter(({ candidateId }) => candidateId !== selectedCandidateId)
 
   return (
     <main className="min-h-svh bg-[var(--color-surface)] px-3 py-3 text-[var(--color-ink)] sm:px-5 sm:py-5 lg:px-7">
@@ -182,6 +237,39 @@ export function RecruitmentBoard() {
           <h2 className="sr-only" id="pipeline-board-title">
             채용 단계별 후보자
           </h2>
+          {boardStageMoveFailures.length > 0 ||
+          boardStageMoveVerifications.length > 0 ? (
+            <div className="mb-4 grid gap-3">
+              {boardStageMoveFailures.map((failure) => (
+                <CandidateStageMoveErrorNotice
+                  failure={failure}
+                  key={`${failure.candidateId}:failure:${failure.completedAt}`}
+                  onRetry={() => {
+                    requestCandidateStageFocus(failure.candidateId)
+                    retryCandidate(failure.candidateId)
+                  }}
+                />
+              ))}
+              {boardStageMoveVerifications.map((verification) => (
+                <CandidateStageMoveVerificationNotice
+                  isVerifying={verificationPendingCandidateIds.has(
+                    verification.candidateId,
+                  )}
+                  key={`${verification.candidateId}:verification`}
+                  onVerify={() => {
+                    void verifyCandidate(verification.candidateId).then(
+                      (resolution) => {
+                        if (resolution.status !== 'verification-required') {
+                          requestCandidateStageFocus(verification.candidateId)
+                        }
+                      },
+                    )
+                  }}
+                  verification={verification}
+                />
+              ))}
+            </div>
+          ) : null}
           <QueryErrorResetBoundary>
             {({ reset }) => (
               <ErrorBoundary
@@ -202,6 +290,7 @@ export function RecruitmentBoard() {
                 <Suspense fallback={<CandidateBoardSkeleton />}>
                   <CandidateBoardContent
                     filters={deferredFilters}
+                    {...(focusRequest === undefined ? {} : { focusRequest })}
                     listSize={deferredListSize}
                     onClearFilters={(inputMethod) => {
                       if (inputMethod === 'keyboard') {
@@ -217,6 +306,7 @@ export function RecruitmentBoard() {
                       )
                     }}
                     pendingCandidateIds={pendingCandidateIds}
+                    stageProjectionByCandidateId={stageProjectionByCandidateId}
                   />
                 </Suspense>
               </ErrorBoundary>
@@ -227,14 +317,20 @@ export function RecruitmentBoard() {
       <CandidateDetailModal
         fallbackFocusRef={boardRegionRef}
         onChangeStage={setStageChangeCandidate}
+        onRetryStageMove={retryCandidate}
+        onVerifyStageMove={verifyCandidate}
         pendingCandidateIds={pendingCandidateIds}
+        stageMoveFailureByCandidateId={stageMoveFailureByCandidateId}
+        stageMoveVerificationByCandidateId={stageMoveVerificationByCandidateId}
+        stageProjectionByCandidateId={stageProjectionByCandidateId}
+        verificationPendingCandidateIds={verificationPendingCandidateIds}
       />
       {stageChangeCandidate ? (
         <CandidateStageChangeDialog
           candidate={stageChangeCandidate}
           fallbackFocusRef={boardRegionRef}
           onClose={() => setStageChangeCandidate(null)}
-          onMoveCandidate={moveCandidate}
+          onMoveCandidate={submitStageMove}
         />
       ) : null}
     </main>

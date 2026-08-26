@@ -22,7 +22,7 @@ afterAll(() => {
 })
 
 describe('SelectField', () => {
-  it('보이는 레이블을 선택 버튼의 접근 가능한 이름으로 사용한다', () => {
+  it('필드 레이블과 현재 선택 값을 이름과 값으로 구분한다', () => {
     render(
       <SelectField
         defaultValue="all"
@@ -59,6 +59,7 @@ describe('SelectField', () => {
 
     expect(handleValueChange).toHaveBeenCalledWith('frontend')
     expect(trigger).toHaveTextContent('프론트엔드 개발자')
+    expect(trigger).toHaveAccessibleName('직무')
     expect(trigger).toHaveFocus()
   })
 

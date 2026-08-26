@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/Button'
 import {
   CANDIDATE_STAGE_LABELS,
   type Candidate,
-  type CandidateStage,
 } from '@/domains/recruitment/candidates/model'
 
 import {
@@ -27,14 +26,7 @@ const candidate: Candidate = {
   revision: 1,
 }
 
-const moveCandidate = fn(
-  async (sourceCandidate: Candidate, stage: CandidateStage) => ({
-    ...sourceCandidate,
-    currentStage: stage,
-    revision: sourceCandidate.revision + 1,
-    stageChangedAt: '2026-08-26T12:00:00.000Z',
-  }),
-)
+const moveCandidate = fn(() => undefined)
 
 function StageChangeDialogFrame({
   candidate,
@@ -73,11 +65,12 @@ function StageChangeDialogFrame({
             onClose()
             setOpen(false)
           }}
-          onMoveCandidate={async (sourceCandidate, stage) => {
-            const movedCandidate = await onMoveCandidate(sourceCandidate, stage)
-
-            setVisibleCandidate(movedCandidate)
-            return movedCandidate
+          onMoveCandidate={(sourceCandidate, stage) => {
+            onMoveCandidate(sourceCandidate, stage)
+            setVisibleCandidate({
+              ...sourceCandidate,
+              currentStage: stage,
+            })
           }}
         />
       ) : null}

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   CANDIDATE_STAGE_LABELS,
   CANDIDATE_STAGES,
+  candidateApiErrorResponseSchema,
   candidateDetailRequestSchema,
   candidateDetailResponseSchema,
   candidateListRequestSchema,
@@ -118,6 +119,35 @@ describe('후보자 도메인 계약', () => {
       candidateStageUpdateRequestSchema.safeParse({
         ...request,
         expectedRevision: -1,
+      }).success,
+    ).toBe(false)
+  })
+
+  it.each(['REVISION_CONFLICT', 'IDEMPOTENCY_KEY_CONFLICT'] as const)(
+    '%s 오류 코드를 안전한 409 계약으로 검증한다',
+    (code) => {
+      const response = {
+        error: {
+          code,
+          message: '화면에 직접 노출하지 않는 서버 메시지',
+          requestId: 'request-conflict',
+          retryable: false,
+        },
+      } as const
+
+      expect(candidateApiErrorResponseSchema.parse(response)).toEqual(response)
+    },
+  )
+
+  it('알 수 없는 서버 오류 코드를 계약에서 거부한다', () => {
+    expect(
+      candidateApiErrorResponseSchema.safeParse({
+        error: {
+          code: 'DATABASE_INTERNAL_DETAIL',
+          message: 'private server detail',
+          requestId: 'request-unknown-code',
+          retryable: false,
+        },
       }).success,
     ).toBe(false)
   })
