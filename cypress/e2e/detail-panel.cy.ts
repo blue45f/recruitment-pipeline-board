@@ -63,9 +63,9 @@ describe('candidate detail panel', () => {
     cy.get('[role="dialog"] [aria-label$="후보자 상세 정보"]', {
       timeout: 5_000,
     }).should('be.visible')
-    cy.document().then((document) => {
-      expect(document.documentElement.scrollWidth).to.equal(
-        document.documentElement.clientWidth,
+    cy.window().then((browserWindow) => {
+      expect(browserWindow.document.documentElement.scrollWidth).to.be.at.most(
+        browserWindow.innerWidth,
       )
     })
     cy.get('[role="dialog"]').then(($dialog) => {

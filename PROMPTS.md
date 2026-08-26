@@ -302,3 +302,5 @@
 - Cypress의 합성 Enter가 Electron에서 native button이 활성화되지 않아 E2E는 클릭·axe·포커스 복귀와 모바일 overflow로 범위를 좁혔다. Enter와 Space 활성화는 Testing Library와 실제 Chromium 키보드 조작으로 각각 확인했다. 상세 기능 중심 Vitest 6개 파일의 18개 테스트가 통과했다.
 - 마지막 읽기 전용 리뷰에서는 커밋을 막을 P0·P1·P2 항목이 없다는 결론을 받았다. 실제 모달의 loading·success·503·404 Story를 추가했다. Cypress 캡처에는 이미지 baseline 비교가 없으므로 자동화된 시각 회귀 테스트를 완료했다고 기록하지 않았다. 이번 Cypress 실행은 데스크톱·모바일 캡처를 남기는 시각 점검과 axe 검사까지 포함했다.
 - 전체 `pnpm check`에서 format, ESLint, Secretlint, Knip, 타입 검사, production build, Vitest 23개 파일의 109개 테스트와 Storybook build가 통과했다. 전체 Cypress는 기존 보드 2개와 상세 2개를 합친 4개 시나리오가 모두 통과했다.
+- PR Quality의 Linux Electron에서는 모바일 문서의 `scrollWidth`와 `clientWidth`가 375px과 390px로 달라 두 overflow 검증이 실패했다. 두 값이 항상 같다는 환경 의존 가정을 제거하고, 문서 너비가 실제 viewport의 `innerWidth`를 넘지 않는지 확인하도록 수정했다. 이 기준은 세로 스크롤바 너비는 허용하면서 가로로 튀어나온 콘텐츠는 계속 탐지한다.
+- 첫 커밋 시도는 제목이 대문자 `CI`로 시작해 Commitlint의 `subject-case` 규칙에 거부됐고 커밋은 생성되지 않았다. 제목을 한글 중심으로 고쳐 같은 변경을 다시 커밋했다.

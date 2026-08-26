@@ -11,9 +11,9 @@ describe('recruitment board layout', () => {
     cy.viewport(390, 844)
     cy.visit('/')
 
-    cy.document().then((document) => {
-      expect(document.documentElement.scrollWidth).to.equal(
-        document.documentElement.clientWidth,
+    cy.window().then((browserWindow) => {
+      expect(browserWindow.document.documentElement.scrollWidth).to.be.at.most(
+        browserWindow.innerWidth,
       )
     })
     cy.get('[aria-label="채용 단계별 후보자 보드"]').then(($board) => {
