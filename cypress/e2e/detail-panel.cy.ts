@@ -10,7 +10,7 @@ describe('candidate detail panel', () => {
       .should('be.visible')
       .then(($card) => {
         const candidateId = $card.attr('data-candidate-id')
-        const candidateName = $card.attr('aria-label')?.split(' 후보자,')[0]
+        const candidateName = $card.attr('data-candidate-name')
 
         expect(candidateId).to.be.a('string')
         expect(candidateId?.length ?? 0).to.be.greaterThan(0)

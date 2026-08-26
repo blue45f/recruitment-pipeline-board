@@ -113,9 +113,9 @@ export function CandidateCard({
             ? 'ArrowLeft ArrowRight ArrowUp ArrowDown Home End'
             : undefined
         }
-        aria-label={`${candidate.name} 후보자, ${roleLabel}, 현재 단계 ${stageLabel}, 지원일 ${formatCandidateCompactDate(candidate.appliedAt)}, 상세 보기`}
         className="flex min-h-40 w-full cursor-pointer flex-col p-4 pb-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-[var(--color-focus)] focus-visible:ring-inset"
         data-candidate-id={candidate.id}
+        data-candidate-name={candidate.name}
         onBlur={cancelPrefetch}
         onClick={() => {
           cancelPrefetch()
@@ -139,7 +139,7 @@ export function CandidateCard({
           <span className="min-w-0">
             <span className="block truncate text-base font-bold tracking-[-0.02em] text-[var(--color-ink)]">
               {candidate.name}
-            </span>
+            </span>{' '}
             <span className="mt-1 block truncate text-sm text-[var(--color-muted)]">
               {roleLabel}
             </span>
@@ -150,21 +150,20 @@ export function CandidateCard({
           >
             C{stage.index}
           </span>
-        </span>
-
+        </span>{' '}
         <span className="mt-auto w-full pt-3">
           <Badge tone={stage.badgeTone}>
-            <span className="sr-only">현재 단계: </span>
-            {stageLabel}
-          </Badge>
+            <span className="sr-only">현재 단계:</span> {stageLabel}
+          </Badge>{' '}
           <span className="mt-2 flex items-center gap-1.5 text-xs text-[var(--color-muted)]">
             <CalendarDays aria-hidden="true" className="size-3.5" />
-            <span className="shrink-0 whitespace-nowrap">지원일</span>
+            <span className="shrink-0 whitespace-nowrap">지원일</span>{' '}
             <time className="font-data truncate" dateTime={candidate.appliedAt}>
               {formatCandidateCompactDate(candidate.appliedAt)}
             </time>
           </span>
-        </span>
+        </span>{' '}
+        <span className="sr-only">후보자 상세 보기</span>
       </button>
       <div className="border-t border-[var(--color-line)] p-2 pl-3">
         <Button

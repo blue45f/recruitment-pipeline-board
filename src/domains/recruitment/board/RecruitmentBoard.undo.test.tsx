@@ -229,7 +229,7 @@ function expectCandidateInStage(candidate: Candidate, stage: CandidateStage) {
   expect(
     within(getStageSection(stage)).getByRole('button', {
       hidden: true,
-      name: new RegExp(`^${candidate.name} 후보자,`),
+      name: new RegExp(`^${candidate.name} .*후보자 상세 보기$`),
     }),
   ).toBeInTheDocument()
 }
@@ -450,7 +450,7 @@ describe('RecruitmentBoard candidate stage move Undo', () => {
     await screen.findByRole('button', { name: availableUndoName(candidate) })
     await user.click(
       within(getStageSection(targetStage)).getByRole('button', {
-        name: new RegExp(`^${candidate.name} 후보자,`),
+        name: new RegExp(`^${candidate.name} .*후보자 상세 보기$`),
       }),
     )
 
@@ -532,7 +532,7 @@ describe('RecruitmentBoard candidate stage move Undo', () => {
     )
     await user.click(
       screen.getByRole('button', {
-        name: new RegExp(`^${viewedCandidate.name} 후보자,`),
+        name: new RegExp(`^${viewedCandidate.name} .*후보자 상세 보기$`),
       }),
     )
 

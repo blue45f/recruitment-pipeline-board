@@ -714,3 +714,34 @@
 - 가상 목록 테스트에서 AutoScroller를 끄자는 낮은 우선순위 의견은 반영하지 않았다. 테스트에서만 실제 plugin을 제거하면 사용자가 겪는 구성과 달라지고, 현재 포인터는 가장자리에서 시작하지 않으며 취소 뒤 source 제거까지 반복 실행에서 안정적으로 통과했기 때문이다. 내부 함수 41개에 일괄 docstring을 추가하라는 일반 경고도 기존 문서화 방식과 코드 밀도를 고려해 적용하지 않았다.
 - Chrome 151 production bundle에서 단계 이동 13개와 가상 목록 5개가 모두 통과했다. 터치 경계 시나리오는 핸들의 계산된 `touch-action`이 `pan-y`인지도 함께 확인한다. 로컬 시각 시나리오 5개도 overlay 위치 안정화 검사를 포함해 모두 통과했다.
 - 최종 `pnpm check`에서 format, ESLint, Secretlint, Knip, 애플리케이션과 Cypress 타입 검사, production build, Vitest 40개 파일의 282개 테스트와 Storybook build가 모두 통과했다. 새 커밋의 원격 Quality, SonarCloud, Linux 시각 비교가 다시 통과하기 전에는 병합하지 않는다.
+
+## [performance-a11y] 초기 표시와 카드 접근성 보완
+
+### 프롬프트 1
+
+> 레이아웃시프트나 fcp, lcp 같은 성능적인 부분도 고려해서 작업해줘
+
+### 프롬프트 2
+
+> useSuspenseQueries로 request waterfall 현상 발생하지 않도록 유의해주고 동시 api호출하는 경우 최대한 렌더링 멈추지 않게 최적화 잘해주고 Suspense기능도 잘 활용해주고 에러바운더리도 잘 설계해줘
+
+### 프롬프트 3
+
+> 도전 유구사항 특히 웹접근성 잘 챙겨줘
+
+### AI 출력 요지
+
+- 앱 코드와 Mock Service Worker를 병렬로 준비하는 동안에도 제목과 실제 화면 크기에 맞춘 골격을 먼저 보여준다. 부팅 뒤 목록 조회와 Suspense·Error Boundary 구조는 바꾸지 않는다.
+- 첫 보드에는 독립된 요청이 후보자 목록 하나뿐이므로 `useSuspenseQueries`를 추가하지 않는다. 목록을 한 번 받은 뒤 다섯 단계로 나누는 현재 구조가 요청 수와 실패 지점을 가장 적게 만든다.
+- 후보자 상세 버튼은 별도 `aria-label`을 만들지 않고 화면에 보이는 이름, 직무, 단계와 지원일을 접근 가능한 이름으로 사용한다. 동작을 설명하는 `후보자 상세 보기`만 화면 읽기 도구용 문구로 덧붙인다.
+- 사용하지 않던 `web-vitals` 의존성과 Knip 예외는 제거한다. 성능은 production build를 Lighthouse의 같은 조건에서 세 번 측정해 비교한다.
+
+### 리뷰 / 검증
+
+- 변경 전 production build를 모바일 Lighthouse 기본 조건으로 세 번 측정했다. 중앙값은 Performance 88점, FCP 2,259ms, LCP 3,615ms, CLS 0, TBT 54ms였다. LCP 요소는 보드 데이터가 아니라 헤더 설명이었다. 앱과 Mock Service Worker 준비를 모두 기다린 뒤 첫 UI를 그리는 부팅 경계가 영향을 줬다.
+- 처음에는 준비 화면을 일반 React 렌더로 추가했지만 측정값이 달라지지 않았다. 초기 렌더가 실제 DOM에 반영되는 시점을 보장하지 못한 것이 원인이어서 부팅 화면 한 번에만 `flushSync`를 사용했다. 앱 코드와 Mock Worker 로딩은 계속 병렬로 실행한다.
+- 필터 골격의 padding, grid breakpoint와 높이를 실제 검색·Select·버튼에 맞췄다. 수정 뒤 같은 조건의 세 번 측정은 모두 Performance 89점이었다. 중앙값은 FCP 2,273ms, LCP 3,343ms, CLS 0, TBT 52ms로 LCP가 약 272ms 줄었고 레이아웃 이동은 생기지 않았다. FCP와 LCP가 모두 목표값을 충족했다고 표현하지 않고, 초기 로드에는 50ms를 넘는 long task가 네 건 남아 있다는 점도 확인했다.
+- 접근성 독립 검사에서는 카드의 보이는 문구와 수동 `aria-label` 순서가 달라 WCAG 2.5.3 실험 규칙이 serious 위반을 보고했다. 수동 이름을 제거하고 실제 카드 내용을 이름으로 쓰도록 수정했다. Cypress에서 의미 문구를 파싱하던 부분도 테스트 전용 후보자명 속성으로 분리했다.
+- 기본 axe 검사에 포함되지 않는 `label-content-name-mismatch` 규칙을 보드 Cypress에서 명시적으로 켰다. production Lighthouse 접근성 점수는 100점이었고 같은 규칙의 위반은 0건이었다.
+- 가상 목록 검사는 root font-size를 32px로 높여 200% 텍스트 확대에서 카드 겹침과 문서 가로 넘침이 없고 axe 위반도 없는지 확인했다. 이는 브라우저 자체 확대가 아니라 텍스트 확대 회귀라는 범위로 기록한다.
+- `pnpm check`에서 format, ESLint, Secretlint, Knip, 애플리케이션과 Cypress 타입 검사, production build, Vitest 40개 파일의 283개 테스트와 Storybook build가 모두 통과했다. Chrome 151 production Cypress의 보드 3개, 상세 2개, 단계 이동 13개와 가상 목록 5개도 모두 통과했다.

@@ -21,6 +21,12 @@ describe('recruitment board layout', () => {
     cy.contains('h1', '채용 후보자 보드').should('be.visible')
     waitForCandidateBoard()
     cy.get('[aria-label="채용 단계별 후보자 보드"] h2').should('have.length', 5)
+    cy.injectAxe()
+    cy.checkA11y('main', {
+      rules: {
+        'label-content-name-mismatch': { enabled: true },
+      },
+    })
   })
 
   it('모바일 문서에는 의도하지 않은 가로 스크롤을 만들지 않는다', () => {
