@@ -6,10 +6,12 @@ import {
   type CandidateStage,
 } from '@/domains/recruitment/candidates/model'
 
+import type { CandidateBoardFocusRequest } from './candidateBoardFocus'
 import { CandidateStageColumn } from './CandidateStageColumn'
 
 export type CandidateBoardViewProps = Readonly<{
   candidatesByStage: Record<CandidateStage, readonly Candidate[]>
+  focusRequest?: CandidateBoardFocusRequest
   onChangeStage: (candidate: Candidate) => void
   onOpenCandidate: (candidateId: CandidateId) => void
   onPrefetchCandidate?: (candidateId: CandidateId) => void
@@ -21,6 +23,7 @@ const EMPTY_PENDING_CANDIDATE_IDS = new Set<CandidateId>()
 
 export function CandidateBoardView({
   candidatesByStage,
+  focusRequest,
   onChangeStage,
   onOpenCandidate,
   onPrefetchCandidate,
@@ -39,6 +42,7 @@ export function CandidateBoardView({
           {CANDIDATE_STAGES.map((stage) => (
             <CandidateStageColumn
               candidates={candidatesByStage[stage]}
+              {...(focusRequest === undefined ? {} : { focusRequest })}
               key={stage}
               onChangeStage={onChangeStage}
               onOpenCandidate={onOpenCandidate}

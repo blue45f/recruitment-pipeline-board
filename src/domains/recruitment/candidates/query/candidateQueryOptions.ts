@@ -1,7 +1,17 @@
 import { queryOptions } from '@tanstack/react-query'
 
 import { ApiError, createCandidateApi } from '../api'
-import type { CandidateId, CandidateListSize } from '../model'
+import type {
+  CandidateDetailResponse,
+  CandidateId,
+  CandidateListResponse,
+  CandidateListSize,
+} from '../model'
+import { candidateQueryKeys } from './candidateQueryKeys'
+import {
+  reconcileCandidateDetailResponse,
+  reconcileCandidateListResponse,
+} from './candidateStructuralSharing'
 
 const candidateApi = createCandidateApi()
 
@@ -15,21 +25,18 @@ function shouldRetryCandidateQuery(failureCount: number, error: unknown) {
   )
 }
 
-export const candidateQueryKeys = {
-  all: ['recruitment', 'candidates'] as const,
-  details: () => [...candidateQueryKeys.all, 'detail'] as const,
-  detail: (candidateId: CandidateId) =>
-    [...candidateQueryKeys.details(), candidateId] as const,
-  lists: () => [...candidateQueryKeys.all, 'list'] as const,
-  list: (size: CandidateListSize) =>
-    [...candidateQueryKeys.lists(), size] as const,
-  stageUpdates: () => [...candidateQueryKeys.all, 'stage-update'] as const,
-}
-
 export function candidateListQueryOptions(size: CandidateListSize) {
   return queryOptions({
     queryKey: candidateQueryKeys.list(size),
-    queryFn: ({ signal }) => candidateApi.list({ size }, { signal }),
+    queryFn: async ({ client, queryKey, signal }) => {
+      const incomingResponse = await candidateApi.list({ size }, { signal })
+
+      return reconcileCandidateListResponse(
+        client,
+        client.getQueryData<CandidateListResponse>(queryKey),
+        incomingResponse,
+      )
+    },
     retry: shouldRetryCandidateQuery,
   })
 }
@@ -37,7 +44,20 @@ export function candidateListQueryOptions(size: CandidateListSize) {
 export function candidateDetailQueryOptions(candidateId: CandidateId) {
   return queryOptions({
     queryKey: candidateQueryKeys.detail(candidateId),
-    queryFn: ({ signal }) => candidateApi.detail({ candidateId }, { signal }),
+    queryFn: async ({ client, queryKey, signal }) => {
+      const incomingResponse = await candidateApi.detail(
+        { candidateId },
+        { signal },
+      )
+
+      return reconcileCandidateDetailResponse(
+        client,
+        client.getQueryData<CandidateDetailResponse>(queryKey),
+        incomingResponse,
+      )
+    },
     retry: shouldRetryCandidateQuery,
   })
 }
+
+export { candidateQueryKeys } from './candidateQueryKeys'

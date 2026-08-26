@@ -17,6 +17,7 @@ import type {
   CandidateId,
 } from '@/domains/recruitment/candidates/model'
 
+import type { CandidateBoardFocusRequest } from './candidateBoardFocus'
 import { CandidateCard, type CandidateCardAction } from './CandidateCard'
 
 const DEFAULT_ROOT_FONT_SIZE = 16
@@ -92,6 +93,7 @@ function getTargetCandidateIndex(
 export type VirtualizedCandidateListProps = Readonly<{
   candidates: readonly Candidate[]
   descriptionId: string
+  focusRequest?: CandidateBoardFocusRequest
   label: string
   onChangeStage: (candidate: Candidate) => void
   onOpenCandidate: (candidateId: CandidateId) => void
@@ -102,6 +104,7 @@ export type VirtualizedCandidateListProps = Readonly<{
 export function VirtualizedCandidateList({
   candidates,
   descriptionId,
+  focusRequest,
   label,
   onChangeStage,
   onOpenCandidate,
@@ -119,6 +122,7 @@ export function VirtualizedCandidateList({
     action: CandidateCardAction
     candidateId: CandidateId
   } | null>(null)
+  const handledFocusRequestId = useRef<number | null>(null)
   const [activeAction, setActiveAction] =
     useState<CandidateCardAction>('detail')
   const [activeCandidateId, setActiveCandidateId] =
@@ -172,6 +176,36 @@ export function VirtualizedCandidateList({
     useFlushSync: false,
   })
   const virtualCandidates = virtualizer.getVirtualItems()
+
+  useLayoutEffect(() => {
+    if (
+      focusRequest === undefined ||
+      handledFocusRequestId.current === focusRequest.requestId
+    ) {
+      return
+    }
+
+    const targetIndex = candidates.findIndex(
+      ({ id }) => id === focusRequest.candidateId,
+    )
+
+    if (targetIndex < 0) {
+      return
+    }
+
+    const action = pendingCandidateIds.has(focusRequest.candidateId)
+      ? 'detail'
+      : 'stage'
+
+    handledFocusRequestId.current = focusRequest.requestId
+    pendingFocus.current = {
+      action,
+      candidateId: focusRequest.candidateId,
+    }
+    setActiveAction(action)
+    setActiveCandidateId(focusRequest.candidateId)
+    virtualizer.scrollToIndex(targetIndex, { align: 'center' })
+  }, [candidates, focusRequest, pendingCandidateIds, virtualizer])
 
   useLayoutEffect(() => {
     const pendingTarget = pendingFocus.current

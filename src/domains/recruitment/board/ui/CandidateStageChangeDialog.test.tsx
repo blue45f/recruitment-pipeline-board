@@ -1,9 +1,8 @@
 import { createRef } from 'react'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
-import { ApiError } from '@/domains/recruitment/candidates/api'
 import type {
   Candidate,
   CandidateStage,
@@ -24,10 +23,7 @@ const candidate: Candidate = {
   revision: 1,
 }
 
-type MoveCandidate = (
-  sourceCandidate: Candidate,
-  stage: CandidateStage,
-) => Promise<Candidate>
+type MoveCandidate = (sourceCandidate: Candidate, stage: CandidateStage) => void
 
 function renderDialog(onMoveCandidate: MoveCandidate) {
   const fallbackFocusRef = createRef<HTMLElement>()
@@ -73,14 +69,9 @@ describe('CandidateStageChangeDialog', () => {
     expect(onMoveCandidate).not.toHaveBeenCalled()
   })
 
-  it('키보드로 목적 단계를 선택해 저장하고 완료 뒤 닫는다', async () => {
+  it('키보드로 목적 단계를 선택하면 이동을 접수하고 바로 닫는다', async () => {
     const user = userEvent.setup()
-    const updatedCandidate: Candidate = {
-      ...candidate,
-      currentStage: 'interview',
-      revision: 2,
-    }
-    const onMoveCandidate = vi.fn().mockResolvedValue(updatedCandidate)
+    const onMoveCandidate = vi.fn<MoveCandidate>()
     const { onClose } = renderDialog(onMoveCandidate)
     const interview = screen.getByRole('radio', { name: '면접' })
 
@@ -88,38 +79,10 @@ describe('CandidateStageChangeDialog', () => {
     await user.keyboard(' ')
     await user.click(screen.getByRole('button', { name: '변경하기' }))
 
-    await waitFor(() => {
-      expect(onMoveCandidate).toHaveBeenCalledExactlyOnceWith(
-        candidate,
-        'interview',
-      )
-      expect(onClose).toHaveBeenCalledOnce()
-    })
-  })
-
-  it('서버 오류 원문 대신 안전한 메시지를 폼 안에 표시한다', async () => {
-    const user = userEvent.setup()
-    const internalMessage = 'database password from upstream'
-    const onMoveCandidate = vi.fn().mockRejectedValue(
-      new ApiError({
-        kind: 'http',
-        status: 503,
-        requestId: 'request-stage-dialog',
-        retryable: false,
-        safeMessage: '서버가 잠시 불안정합니다. 잠시 후 다시 시도해 주세요.',
-        cause: new Error(internalMessage),
-      }),
+    expect(onMoveCandidate).toHaveBeenCalledExactlyOnceWith(
+      candidate,
+      'interview',
     )
-    const { onClose } = renderDialog(onMoveCandidate)
-
-    await user.click(screen.getByRole('radio', { name: '면접' }))
-    await user.click(screen.getByRole('button', { name: '변경하기' }))
-
-    const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent(
-      '서버가 잠시 불안정합니다. 잠시 후 다시 시도해 주세요.',
-    )
-    expect(alert).not.toHaveTextContent(internalMessage)
-    expect(onClose).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledOnce()
   })
 })

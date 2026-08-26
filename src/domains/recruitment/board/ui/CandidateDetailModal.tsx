@@ -14,14 +14,21 @@ import type {
   Candidate,
   CandidateId,
   CandidateListResponse,
+  CandidateStage,
 } from '@/domains/recruitment/candidates/model'
 import {
   candidateDetailQueryOptions,
   candidateQueryKeys,
 } from '@/domains/recruitment/candidates/query'
 
-import { useBoardDetailStore } from '../model'
+import {
+  projectCandidateStage,
+  useBoardDetailStore,
+  type CandidateStageMoveFailure,
+  type CandidateStageProjection,
+} from '../model'
 import { CandidateDetailView } from './CandidateDetailView'
+import { CandidateStageMoveErrorNotice } from './CandidateStageMoveErrorNotice'
 
 function CandidateDetailSkeleton() {
   return (
@@ -112,10 +119,12 @@ function CandidateDetailContent({
   candidateId,
   onChangeStage,
   pendingCandidateIds,
+  stageProjectionByCandidateId,
 }: Readonly<{
   candidateId: CandidateId
   onChangeStage?: (candidate: Candidate) => void
   pendingCandidateIds: ReadonlySet<CandidateId>
+  stageProjectionByCandidateId: CandidateStageProjection
 }>) {
   const { data: response } = useSuspenseQuery(
     candidateDetailQueryOptions(candidateId),
@@ -131,7 +140,10 @@ function CandidateDetailContent({
         {response.data.name} 후보자 상세 정보를 불러왔습니다.
       </p>
       <CandidateDetailView
-        candidate={response.data}
+        candidate={projectCandidateStage(
+          response.data,
+          stageProjectionByCandidateId,
+        )}
         isStageChangePending={pendingCandidateIds.has(response.data.id)}
         {...(onChangeStage === undefined ? {} : { onChangeStage })}
       />
@@ -142,15 +154,29 @@ function CandidateDetailContent({
 export type CandidateDetailModalProps = Readonly<{
   fallbackFocusRef: RefObject<HTMLElement | null>
   onChangeStage?: (candidate: Candidate) => void
+  onRetryStageMove?: (candidate: Candidate, stage: CandidateStage) => void
   pendingCandidateIds?: ReadonlySet<CandidateId>
+  stageMoveFailureByCandidateId?: ReadonlyMap<
+    CandidateId,
+    CandidateStageMoveFailure
+  >
+  stageProjectionByCandidateId?: CandidateStageProjection
 }>
 
 const EMPTY_PENDING_CANDIDATE_IDS = new Set<CandidateId>()
+const EMPTY_STAGE_MOVE_FAILURES = new Map<
+  CandidateId,
+  CandidateStageMoveFailure
+>()
+const EMPTY_STAGE_PROJECTION: CandidateStageProjection = new Map()
 
 export function CandidateDetailModal({
   fallbackFocusRef,
   onChangeStage,
+  onRetryStageMove,
   pendingCandidateIds = EMPTY_PENDING_CANDIDATE_IDS,
+  stageMoveFailureByCandidateId = EMPTY_STAGE_MOVE_FAILURES,
+  stageProjectionByCandidateId = EMPTY_STAGE_PROJECTION,
 }: CandidateDetailModalProps) {
   const detailPanelRef = useRef<HTMLDivElement>(null)
   const restoreFocusCandidateId = useRef<CandidateId | null>(null)
@@ -159,6 +185,9 @@ export function CandidateDetailModal({
     (state) => state.selectedCandidateId,
   )
   const closeCandidate = useBoardDetailStore((state) => state.closeCandidate)
+  const stageMoveFailure = selectedCandidateId
+    ? stageMoveFailureByCandidateId.get(selectedCandidateId)
+    : undefined
   const candidateName = queryClient
     .getQueriesData<CandidateListResponse>({
       queryKey: candidateQueryKeys.lists(),
@@ -204,10 +233,25 @@ export function CandidateDetailModal({
       {selectedCandidateId ? (
         <div
           className="outline-none"
+          data-candidate-detail-id={selectedCandidateId}
           data-testid="candidate-detail-content"
           ref={detailPanelRef}
           tabIndex={-1}
         >
+          {stageMoveFailure && onRetryStageMove ? (
+            <div className="mb-5">
+              <CandidateStageMoveErrorNotice
+                failure={stageMoveFailure}
+                onRetry={() => {
+                  detailPanelRef.current?.focus({ preventScroll: true })
+                  onRetryStageMove(
+                    stageMoveFailure.candidate,
+                    stageMoveFailure.targetStage,
+                  )
+                }}
+              />
+            </div>
+          ) : null}
           <QueryErrorResetBoundary>
             {({ reset }) => (
               <ErrorBoundary
@@ -230,6 +274,7 @@ export function CandidateDetailModal({
                     candidateId={selectedCandidateId}
                     {...(onChangeStage === undefined ? {} : { onChangeStage })}
                     pendingCandidateIds={pendingCandidateIds}
+                    stageProjectionByCandidateId={stageProjectionByCandidateId}
                   />
                 </Suspense>
               </ErrorBoundary>

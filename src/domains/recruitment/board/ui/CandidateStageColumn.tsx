@@ -6,10 +6,12 @@ import {
 } from '@/domains/recruitment/candidates/model'
 
 import { CANDIDATE_STAGE_PRESENTATION } from './candidateStagePresentation'
+import type { CandidateBoardFocusRequest } from './candidateBoardFocus'
 import { VirtualizedCandidateList } from './VirtualizedCandidateList'
 
 export type CandidateStageColumnProps = Readonly<{
   candidates: readonly Candidate[]
+  focusRequest?: CandidateBoardFocusRequest
   onChangeStage: (candidate: Candidate) => void
   onOpenCandidate: (candidateId: CandidateId) => void
   onPrefetchCandidate?: (candidateId: CandidateId) => void
@@ -20,6 +22,7 @@ export type CandidateStageColumnProps = Readonly<{
 
 export function CandidateStageColumn({
   candidates,
+  focusRequest,
   onChangeStage,
   onOpenCandidate,
   onPrefetchCandidate,
@@ -79,6 +82,7 @@ export function CandidateStageColumn({
         <VirtualizedCandidateList
           candidates={candidates}
           descriptionId={navigationDescriptionId}
+          {...(focusRequest === undefined ? {} : { focusRequest })}
           key={scrollResetKey}
           label={`${stageLabel} 후보자 ${candidates.length.toLocaleString('ko-KR')}명`}
           onChangeStage={onChangeStage}
