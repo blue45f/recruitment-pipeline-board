@@ -76,13 +76,11 @@ export function CandidateStageChangeDialog({
           document.querySelectorAll<HTMLButtonElement>(
             '[data-stage-change-candidate-id]',
           ),
+        ).findLast(
+          (button) =>
+            button.dataset.stageChangeCandidateId === candidate.id &&
+            !button.disabled,
         )
-          .filter(
-            (button) =>
-              button.dataset.stageChangeCandidateId === candidate.id &&
-              !button.disabled,
-          )
-          .at(-1)
 
         event.preventDefault()
 
