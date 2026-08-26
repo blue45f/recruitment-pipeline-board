@@ -22,7 +22,7 @@ afterAll(() => {
 })
 
 describe('SelectField', () => {
-  it('필드 레이블과 현재 선택 값을 이름과 값으로 구분한다', () => {
+  it('필드 레이블과 보이는 현재 값을 접근 가능한 이름에 함께 포함한다', () => {
     render(
       <SelectField
         defaultValue="all"
@@ -32,9 +32,12 @@ describe('SelectField', () => {
       />,
     )
 
-    expect(screen.getByRole('combobox', { name: '직무' })).toHaveTextContent(
-      '전체 직무',
-    )
+    const trigger = screen.getByRole('combobox', {
+      name: '직무 전체 직무',
+    })
+
+    expect(trigger).toHaveTextContent('전체 직무')
+    expect(trigger).toHaveAccessibleName('직무 전체 직무')
   })
 
   it('키보드로 다음 항목을 선택하고 변경 값을 전달한다', async () => {
@@ -51,7 +54,9 @@ describe('SelectField', () => {
       />,
     )
 
-    const trigger = screen.getByRole('combobox', { name: '직무' })
+    const trigger = screen.getByRole('combobox', {
+      name: '직무 전체 직무',
+    })
     trigger.focus()
     await user.keyboard(' ')
     await screen.findByRole('option', { name: '전체 직무' })
@@ -59,7 +64,7 @@ describe('SelectField', () => {
 
     expect(handleValueChange).toHaveBeenCalledWith('frontend')
     expect(trigger).toHaveTextContent('프론트엔드 개발자')
-    expect(trigger).toHaveAccessibleName('직무')
+    expect(trigger).toHaveAccessibleName('직무 프론트엔드 개발자')
     expect(trigger).toHaveFocus()
   })
 
@@ -74,7 +79,9 @@ describe('SelectField', () => {
       />,
     )
 
-    const trigger = screen.getByRole('combobox', { name: '직무' })
+    const trigger = screen.getByRole('combobox', {
+      name: '직무 선택해 주세요',
+    })
 
     expect(trigger).toHaveAttribute('aria-invalid', 'true')
     expect(trigger).toHaveAccessibleDescription(

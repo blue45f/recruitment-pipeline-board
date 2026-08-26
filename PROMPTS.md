@@ -582,3 +582,19 @@
 - 최신 production 화면을 내부 브라우저에서 다시 확인했다. 보드에는 되돌리기 액션이 한 개만 있었다. 다른 후보자 상세를 열면 같은 액션 한 개가 모달 안으로 이동했다. 모달 밖 Undo 버튼과 toast 닫기 버튼은 모두 0개였다.
 - 첫 `pnpm check`는 roving tab stop 보완 파일의 Prettier 차이로 중단됐다. 해당 파일을 포맷한 뒤 전체 게이트를 다시 실행했다. Vitest는 37개 파일 263개가 통과했고 커버리지는 statements 91.41%, branches 83.87%, functions 93.82%, lines 93.75%였다. 정적 의존성 검사는 불필요하게 export한 내부 타입 두 개를 찾아 공개 범위에서 제외한 뒤 통과했으며 format, ESLint, Secretlint, 타입 검사, production build와 Storybook build도 통과했다.
 - AccessLint의 live URL 검사에서는 Undo가 아닌 공용 표시 수 Select의 접근 가능한 이름에 보이는 선택값이 포함되지 않았다는 serious 항목 한 건이 남았다. 이 결과를 오탐으로 닫지 않고 공용 컴포넌트 계약은 별도 리뷰 보완으로 수정한다.
+
+## [review-fix] Select 음성 제어 이름 보완
+
+### 프롬프트 1
+
+> 도전 유구사항 특히 웹접근성 잘 챙겨줘
+
+### AI 출력 요지
+
+- 공용 Select의 접근 가능한 이름에 필드 라벨과 화면에 보이는 현재 선택값을 함께 연결한다. 선택이 바뀌면 접근 가능한 이름도 같은 값으로 갱신한다.
+- 기존 설명과 오류 연결, 키보드 선택, 포커스 복귀는 유지한다. 보드 테스트는 바뀐 이름 계약으로 실제 선택값까지 확인한다.
+
+### 리뷰 / 검증
+
+- Undo 상태를 포함한 live URL 검사에서 `표시할 데이터` Select의 화면 문구 `후보자 200명`이 접근 가능한 이름에 없다는 serious `label-content-mismatch` 한 건이 발견됐다. 이전처럼 combobox의 값이 따로 전달된다는 이유로 오탐 처리하지 않고 음성 제어 사용자가 보이는 문구로 컨트롤을 찾을 수 있게 `aria-labelledby`에 라벨과 현재 값 ID를 함께 연결했다.
+- 수정 뒤 Select와 보드 통합 테스트 14개, 타입 검사와 ESLint, production build가 통과했다. 같은 production URL을 AccessLint의 minor 이상 전체 규칙으로 다시 검사해 위반 0건을 확인했다.
