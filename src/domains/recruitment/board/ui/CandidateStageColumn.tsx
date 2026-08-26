@@ -1,15 +1,21 @@
 import {
   CANDIDATE_STAGE_LABELS,
+  type Candidate,
   type CandidateStage,
 } from '@/domains/recruitment/candidates/model'
 
+import { CandidateCard } from './CandidateCard'
 import { CANDIDATE_STAGE_PRESENTATION } from './candidateStagePresentation'
 
 export type CandidateStageColumnProps = Readonly<{
+  candidates: readonly Candidate[]
   stage: CandidateStage
 }>
 
-export function CandidateStageColumn({ stage }: CandidateStageColumnProps) {
+export function CandidateStageColumn({
+  candidates,
+  stage,
+}: CandidateStageColumnProps) {
   const stageLabel = CANDIDATE_STAGE_LABELS[stage]
   const presentation = CANDIDATE_STAGE_PRESENTATION[stage]
   const headingId = `candidate-stage-${stage}`
@@ -37,15 +43,28 @@ export function CandidateStageColumn({ stage }: CandidateStageColumnProps) {
             </h2>
           </span>
           <span className="font-data inline-flex min-w-8 items-center justify-center rounded-full bg-[var(--color-cobalt-soft)] px-2.5 py-1 text-xs font-bold text-[var(--color-cobalt-strong)]">
-            <span className="sr-only">후보자 수 </span>—
+            <span className="sr-only">후보자 </span>
+            {candidates.length.toLocaleString('ko-KR')}
+            <span className="sr-only">명</span>
           </span>
         </span>
       </div>
 
-      <div className="grid h-[34rem] place-items-center p-3">
-        <p className="rounded-xl border border-dashed border-[var(--color-line-strong)] bg-[var(--color-paper)] px-5 py-8 text-center text-sm leading-6 text-[var(--color-muted)]">
-          후보자 목록을 준비하고 있습니다.
-        </p>
+      <div
+        aria-label={`${stageLabel} 후보자 ${candidates.length.toLocaleString('ko-KR')}명`}
+        className="h-[34rem] [scrollbar-gutter:stable] space-y-3 overflow-y-auto overscroll-contain p-3"
+        role="list"
+      >
+        {candidates.length === 0 ? (
+          <p className="mb-3 grid min-h-32 place-items-center rounded-xl border border-dashed border-[var(--color-line-strong)] bg-[var(--color-paper)] px-5 text-center text-sm leading-6 text-[var(--color-muted)]">
+            이 단계에 후보자가 없습니다.
+          </p>
+        ) : null}
+        {candidates.map((candidate) => (
+          <div key={candidate.id} role="listitem">
+            <CandidateCard candidate={candidate} />
+          </div>
+        ))}
       </div>
     </section>
   )

@@ -1,6 +1,36 @@
-import { Layers3 } from 'lucide-react'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { Layers3, RadioTower } from 'lucide-react'
+import { Suspense } from 'react'
 
+import { candidateListQueryOptions } from '@/domains/recruitment/candidates/query'
+
+import { groupCandidatesByStage } from './model'
 import { CandidateBoardView } from './ui/CandidateBoardView'
+
+function CandidateBoardContent() {
+  const { data: response } = useSuspenseQuery(candidateListQueryOptions(200))
+
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-[var(--color-muted)]">
+          전체{' '}
+          <strong className="font-data text-[var(--color-ink)]">
+            {response.meta.total.toLocaleString('ko-KR')}
+          </strong>
+          명을 표시합니다.
+        </p>
+        <p className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--color-success)]">
+          <RadioTower aria-hidden="true" className="size-3.5" />
+          Mock API 연결됨
+        </p>
+      </div>
+      <CandidateBoardView
+        candidatesByStage={groupCandidatesByStage(response.data)}
+      />
+    </>
+  )
+}
 
 export function RecruitmentBoard() {
   return (
@@ -29,7 +59,7 @@ export function RecruitmentBoard() {
           </div>
 
           <p className="font-data border-l-4 border-[var(--color-coral)] bg-[var(--color-coral-soft)] px-3 py-2 text-[0.6875rem] font-semibold tracking-[0.08em] text-[var(--color-ink)]">
-            BOARD / LAYOUT
+            BOARD / CANDIDATES
           </p>
         </header>
 
@@ -40,7 +70,18 @@ export function RecruitmentBoard() {
           <h2 className="sr-only" id="pipeline-board-title">
             채용 단계별 후보자
           </h2>
-          <CandidateBoardView />
+          <Suspense
+            fallback={
+              <p
+                className="grid min-h-[34rem] place-items-center text-sm text-[var(--color-muted)]"
+                role="status"
+              >
+                후보자 목록을 불러오는 중입니다.
+              </p>
+            }
+          >
+            <CandidateBoardContent />
+          </Suspense>
         </section>
       </div>
     </main>
