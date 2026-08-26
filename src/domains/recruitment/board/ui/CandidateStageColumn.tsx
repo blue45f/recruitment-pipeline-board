@@ -74,6 +74,15 @@ export function CandidateStageColumn({
     draggedCandidate.currentStage !== stage
   const isCurrentStageTarget =
     isDropTarget && draggedCandidate?.currentStage === stage
+  const draggedCandidateProps =
+    draggedCandidateId === undefined ? {} : { draggedCandidateId }
+  let stagePrefix = 'STAGE '
+
+  if (isValidDropTarget) {
+    stagePrefix = 'MOVE TO / '
+  } else if (isCurrentStageTarget) {
+    stagePrefix = 'CURRENT / '
+  }
 
   return (
     <section
@@ -101,11 +110,7 @@ export function CandidateStageColumn({
         <span className="flex items-center justify-between gap-3">
           <span>
             <span className="font-data block text-[0.6875rem] font-semibold tracking-[0.16em] text-[var(--color-subtle)]">
-              {isValidDropTarget
-                ? 'MOVE TO / '
-                : isCurrentStageTarget
-                  ? 'CURRENT / '
-                  : 'STAGE '}
+              {stagePrefix}
               {presentation.index}
             </span>
             <h2
@@ -141,7 +146,7 @@ export function CandidateStageColumn({
         <VirtualizedCandidateList
           candidates={candidates}
           descriptionId={navigationDescriptionId}
-          {...(draggedCandidateId === undefined ? {} : { draggedCandidateId })}
+          {...draggedCandidateProps}
           {...focusRequestProps}
           key={scrollResetKey}
           label={`${stageLabel} 후보자 ${candidates.length.toLocaleString('ko-KR')}명`}

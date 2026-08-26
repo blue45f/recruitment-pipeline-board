@@ -655,3 +655,23 @@
 - 현재 전체 diff로 `pnpm check`를 다시 실행해 format, ESLint와 접근성 규칙, Secretlint, Knip, 타입 검사, production build, Vitest 40개 파일의 282개 테스트와 Storybook build가 모두 통과했다.
 - 최신 production bundle의 Electron Cypress는 보드 3개, 상세 2개, 단계 이동 13개, 가상 목록 5개를 합친 23개 시나리오가 모두 통과했다. 커버리지는 statements 91.04%, branches 82.93%, functions 93.51%, lines 93.69%였다.
 - 로컬 Chrome에서 기본 데스크톱·모바일, 상세 데스크톱·모바일과 활성 드래그 화면까지 다섯 장을 생성해 직접 확인했다. Linux 기준선은 macOS 결과로 교체하지 않고 PR의 고정 Chrome·Noto CJK 환경에서 actual과 diff를 확인한 뒤 승인한다.
+
+## [review-fix] 드래그 입력 경계와 유지보수 보완
+
+### 프롬프트 1
+
+> 코드 래빗 리뷰 받은건 너가 확인해서 수정해주고 코드 래빗 뿐 아니라 클로드나 재미나이 리뷰도 함께 받으면서 진행해줘
+
+### AI 출력 요지
+
+- 터치 드래그의 250ms 활성화 경계는 실제 대기 시간 대신 제어 가능한 브라우저 시계로 검증한다. 249ms까지는 비활성, 250ms부터는 활성이라는 조건을 실행 환경의 속도와 무관하게 고정한다.
+- 드롭 단계의 상태 문구와 가상 목록에 전달하는 속성은 렌더 전에 이름 있는 값으로 계산한다. 충돌 판정 함수는 별도 중간 상수 없이 원래 모듈에서 이름을 바꿔 내보낸다.
+- Chromium에서만 유효한 동작 줄이기 검사는 지원하지 않는 브라우저에서 조용히 성공시키지 않고 명시적인 skip으로 기록한다.
+
+### 리뷰 / 검증
+
+- PR #10의 첫 Quality는 통과했다. SonarCloud는 실제 시간에 의존한 Cypress 대기 세 곳, 일반적인 `undefined` 비교 두 곳, 비-Chromium 조기 반환, 중첩 조건식 두 곳과 불필요한 중간 재수출까지 유지보수 이슈 9건을 보고했다. 현재 diff와 위치를 대조해 동작을 바꾸지 않는 범위에서 모두 정리했다.
+- CodeRabbit 상태 검사는 성공으로 표시됐지만 저장소 조건에 따라 자동 리뷰가 생략돼 실제 리뷰 의견으로 계산하지 않았다. 수정 커밋을 올린 뒤 수동 전체 리뷰를 다시 요청한다.
+- 가상 시계를 드래그 이동까지 유지한 첫 설계는 포인터 위치 계산에 필요한 타이머도 멈출 수 있어, 250ms 활성화 직후 실제 시계로 복원하고 목적 단계로 이동하도록 경계를 나눴다. Chrome 151에서 정확히 8px 이동, 터치 249ms·250ms, 허용 거리 이탈과 `pointercancel`을 포함한 단계 이동 13개가 모두 통과했다.
+- Chai의 속성식 `to.be.undefined`는 프로젝트의 `no-unused-expressions` 규칙과 충돌해 첫 전체 검사가 ESLint 두 건으로 중단됐다. 같은 의도를 명시적인 `assert.isUndefined`로 바꿔 정적 분석과 테스트에서 함께 읽을 수 있게 했다.
+- 최종 `pnpm check`에서 format, ESLint, Secretlint, Knip, 애플리케이션과 Cypress 타입 검사, production build, Vitest 40개 파일의 282개 테스트와 Storybook build가 모두 통과했다. 수정 커밋의 원격 Quality, SonarCloud, CodeRabbit 전체 리뷰와 Linux 시각 비교를 다시 확인하기 전에는 병합하지 않는다.

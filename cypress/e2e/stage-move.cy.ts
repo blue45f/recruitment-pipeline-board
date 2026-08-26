@@ -290,6 +290,9 @@ describe('candidate stage move', () => {
   it('작은 포인터 이동과 취소된 터치 제스처는 드래그나 저장으로 이어지지 않는다', () => {
     cy.viewport(1440, 900)
     let patchRequestCount = 0
+    let restorePointerTimers: () => void = () => {
+      throw new Error('포인터 활성화 타이머가 준비되지 않았습니다.')
+    }
 
     visitRecruitmentBoardWithStagePatchControl(async (_body, { proceed }) => {
       patchRequestCount += 1
@@ -303,38 +306,50 @@ describe('candidate stage move', () => {
       })
         .then(expectCandidatePointerDragInactive)
         .then(cancelCandidatePointerSession)
-        .then(() =>
-          beginCandidatePointerGesture(candidateId, {
+        .then(() => cy.clock(0, ['setTimeout', 'clearTimeout']))
+        .then((clock) => {
+          restorePointerTimers = () => clock.restore()
+
+          return beginCandidatePointerGesture(candidateId, {
             pointerType: 'touch',
-          }),
-        )
+          })
+        })
         .then((session) => {
-          // eslint-disable-next-line cypress/no-unnecessary-waiting -- 250ms 터치 활성화 경계 전 상태를 실제 타이머로 확인한다.
-          cy.wait(100)
+          cy.tick(249)
 
           return expectCandidatePointerDragInactive(session)
         })
         .then((session) => {
-          // eslint-disable-next-line cypress/no-unnecessary-waiting -- 남은 활성화 지연이 지난 뒤에만 드래그가 시작되어야 한다.
-          cy.wait(200)
+          cy.tick(1)
 
           return expectCandidatePointerDragActive(session)
         })
+        .then((session) => {
+          restorePointerTimers()
+
+          return session
+        })
         .then((session) => moveCandidatePointerToStage(session, 'interview'))
         .then(cancelCandidatePointerSession)
-        .then(() =>
-          beginCandidatePointerGesture(candidateId, {
+        .then(() => cy.clock(0, ['setTimeout', 'clearTimeout']))
+        .then((clock) => {
+          restorePointerTimers = () => clock.restore()
+
+          return beginCandidatePointerGesture(candidateId, {
             activationDistancePx: 9,
             pointerType: 'touch',
-          }),
-        )
+          })
+        })
         .then((session) => {
-          // eslint-disable-next-line cypress/no-unnecessary-waiting -- 허용 거리를 벗어난 터치가 지연 뒤에도 활성화되지 않는지 확인한다.
-          cy.wait(300)
+          cy.tick(250)
 
           return expectCandidatePointerDragInactive(session)
         })
-        .then(cancelCandidatePointerSession),
+        .then((session) => {
+          restorePointerTimers()
+
+          return cancelCandidatePointerSession(session)
+        }),
     )
 
     cy.get('[data-candidate-drag-overlay]').should('not.exist')
@@ -386,7 +401,10 @@ describe('candidate stage move', () => {
       assert.isDefined(forwardBody, 'drag forward PATCH body')
       assert.isDefined(compensationBody, 'drag compensation PATCH body')
       expect(forwardBody).to.include({ stage: 'interview' })
-      expect(forwardBody?.compensatesClientMutationId).to.equal(undefined)
+      assert.isUndefined(
+        forwardBody?.compensatesClientMutationId,
+        'drag forward request is not a compensation',
+      )
       expect(compensationBody).to.include({
         compensatesClientMutationId: forwardBody?.clientMutationId,
         expectedRevision: (forwardBody?.expectedRevision ?? -1) + 1,
@@ -400,8 +418,8 @@ describe('candidate stage move', () => {
     checkBodyA11y()
   })
 
-  it('동작 줄이기 환경에서는 드래그 피드백의 움직임을 제거한다', () => {
-    if (Cypress.browser.family !== 'chromium') return
+  it('동작 줄이기 환경에서는 드래그 피드백의 움직임을 제거한다', function () {
+    if (Cypress.browser.family !== 'chromium') this.skip()
 
     cy.viewport(1440, 900)
     shouldResetReducedMotion = true
@@ -476,7 +494,10 @@ describe('candidate stage move', () => {
     cy.then(() => {
       expect(patchBodies).to.have.length(1)
       expect(patchBodies[0]).to.include({ stage: 'interview' })
-      expect(patchBodies[0]?.compensatesClientMutationId).to.equal(undefined)
+      assert.isUndefined(
+        patchBodies[0]?.compensatesClientMutationId,
+        'empty-stage drag request is not a compensation',
+      )
     })
   })
 

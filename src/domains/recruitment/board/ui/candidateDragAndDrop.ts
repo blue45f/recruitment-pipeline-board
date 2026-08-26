@@ -1,4 +1,4 @@
-import { pointerIntersection } from '@dnd-kit/collision'
+export { pointerIntersection as candidateStageCollisionDetector } from '@dnd-kit/collision'
 import {
   AutoScroller,
   Cursor,
@@ -117,5 +117,3 @@ export const candidateDragDropSensors = [
         : [new PointerActivationConstraints.Distance({ value: 8 })],
   }),
 ] satisfies ConfiguredSensors
-
-export const candidateStageCollisionDetector = pointerIntersection
