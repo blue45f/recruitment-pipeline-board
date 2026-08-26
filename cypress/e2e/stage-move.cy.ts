@@ -58,18 +58,18 @@ describe('candidate stage move', () => {
           `${TARGET_STAGE_SELECTOR} [data-candidate-id="${id}"]`,
         )
 
-        expect(
+        assert.isNull(
           document.querySelector(
             `${SOURCE_STAGE_SELECTOR} [data-candidate-id="${id}"]`,
           ),
-        ).to.equal(null)
-        expect(optimisticCard).not.to.equal(null)
+        )
+        assert.isNotNull(optimisticCard)
         expect(
           document
             .querySelector(`[data-stage-change-candidate-id="${id}"]`)
             ?.getAttribute('aria-busy'),
         ).to.equal('true')
-        expect(document.querySelector('[role="dialog"]')).to.equal(null)
+        assert.isNull(document.querySelector('[role="dialog"]'))
       })
     })
 
@@ -165,16 +165,16 @@ describe('candidate stage move', () => {
       cy.document().then((document) => {
         const id = String(candidateId)
 
-        expect(
+        assert.isNull(
           document.querySelector(
             `${SOURCE_STAGE_SELECTOR} [data-candidate-id="${id}"]`,
           ),
-        ).to.equal(null)
-        expect(
+        )
+        assert.isNotNull(
           document.querySelector(
             `${TARGET_STAGE_SELECTOR} [data-candidate-id="${id}"]`,
           ),
-        ).not.to.equal(null)
+        )
       })
     })
 

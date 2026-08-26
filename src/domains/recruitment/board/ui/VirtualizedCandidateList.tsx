@@ -203,7 +203,7 @@ export function VirtualizedCandidateList({
     setActiveAction(action)
     setActiveCandidateId(focusRequest.candidateId)
     virtualizer.scrollToIndex(targetIndex, { align: 'center' })
-  }, [candidates, focusRequest, pendingCandidateIds, virtualizer])
+  }, [candidates, focusRequest, virtualizer])
 
   useLayoutEffect(() => {
     const pendingTarget = pendingFocus.current

@@ -42,6 +42,6 @@ export function useCandidateStageMove() {
       snapshot.verificationRequiredByCandidateId,
     stageProjectionByCandidateId: snapshot.stageProjectionByCandidateId,
     verificationPendingCandidateIds: snapshot.verificationPendingCandidateIds,
-    verifyCandidate: coordinator.verify.bind(coordinator),
+    verifyCandidate: coordinator.verify,
   }
 }

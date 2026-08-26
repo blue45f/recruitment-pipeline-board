@@ -255,7 +255,7 @@ describe('RecruitmentBoard', () => {
     })
 
     const listSizeSelect = screen.getByRole('combobox', {
-      name: /^표시할 데이터 /,
+      name: '표시할 데이터',
     })
 
     listSizeSelect.focus()
@@ -405,7 +405,7 @@ describe('RecruitmentBoard', () => {
       expect(currentSearchParams().get('query')).toBe('김')
     })
 
-    const roleSelect = screen.getByRole('combobox', { name: /^직무 / })
+    const roleSelect = screen.getByRole('combobox', { name: '직무' })
     roleSelect.focus()
     await user.keyboard(' ')
     await screen.findByRole('option', { name: '전체 직무' })
@@ -436,7 +436,7 @@ describe('RecruitmentBoard', () => {
     expect(screen.getByRole('searchbox', { name: '후보자 검색' })).toHaveValue(
       '김',
     )
-    expect(screen.getByRole('combobox', { name: /^직무 / })).toHaveTextContent(
+    expect(screen.getByRole('combobox', { name: '직무' })).toHaveTextContent(
       '전체 직무',
     )
   })

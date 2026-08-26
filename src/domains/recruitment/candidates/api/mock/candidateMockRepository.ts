@@ -15,6 +15,7 @@ import type { CandidateMockStorage } from './candidateMockStorage'
 
 const STORAGE_VERSION = 2 as const
 const DEFAULT_FIXTURE_SEED = 20260826
+const MAX_UINT32 = 4_294_967_295
 
 export const CANDIDATE_MOCK_RECEIPT_LIMIT = 512
 export const CANDIDATE_MOCK_RECEIPT_TTL_MS = 24 * 60 * 60 * 1_000
@@ -30,7 +31,7 @@ const persistedMutationSchema = z
 const legacyPersistedEnvelopeSchema = z
   .object({
     version: z.literal(1),
-    seed: z.number().int().min(0).max(0xffff_ffff),
+    seed: z.number().int().min(0).max(MAX_UINT32),
     mutations: z.record(candidateIdSchema, persistedMutationSchema),
   })
   .strict()
@@ -75,7 +76,7 @@ const persistedStageReceiptSchema = z
 const persistedEnvelopeSchema = z
   .object({
     version: z.literal(STORAGE_VERSION),
-    seed: z.number().int().min(0).max(0xffff_ffff),
+    seed: z.number().int().min(0).max(MAX_UINT32),
     mutations: z.record(candidateIdSchema, persistedMutationSchema),
     receipts: z.record(clientMutationIdSchema, persistedStageReceiptSchema),
   })

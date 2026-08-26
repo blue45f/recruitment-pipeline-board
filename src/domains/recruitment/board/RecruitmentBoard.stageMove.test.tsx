@@ -12,6 +12,7 @@ import {
   describe,
   expect,
   it,
+  onTestFinished,
   vi,
 } from 'vitest'
 
@@ -537,6 +538,8 @@ describe('RecruitmentBoard candidate stage move', () => {
     const toastSuccess = vi.spyOn(toast, 'success')
     const patchBodies: CandidateStageUpdateRequest[] = []
 
+    onTestFinished(() => toastSuccess.mockRestore())
+
     if (!firstTargetStage || !finalTargetStage) {
       throw new Error('연속 이동을 검증할 두 단계를 찾지 못했습니다.')
     }
@@ -681,7 +684,6 @@ describe('RecruitmentBoard candidate stage move', () => {
         name: `${candidate.name} 후보자 단계 변경`,
       }),
     ).not.toHaveAttribute('aria-busy')
-    toastSuccess.mockRestore()
   })
 
   it('상세 모달에서 실패를 알리고 키보드 재시도 뒤 상세 내용으로 포커스를 회복한다', async () => {

@@ -490,9 +490,9 @@ export class CandidateMovementCoordinator {
     return this.submit(failure.intent)
   }
 
-  verify(
+  readonly verify = (
     candidateId: CandidateId,
-  ): Promise<CandidateMoveVerificationResolution> {
+  ): Promise<CandidateMoveVerificationResolution> => {
     const currentRun = this.verificationRunByCandidateId.get(candidateId)
 
     if (currentRun !== undefined) {
@@ -833,85 +833,89 @@ export class CandidateMovementCoordinator {
         return
       }
 
-      const { candidateId } = task
-
       if (task.kind === 'verification') {
-        const run = this.verificationRunByCandidateId.get(candidateId)
-        const verification =
-          this.verificationRequiredByCandidateId.get(candidateId)
-
-        if (
-          run === undefined ||
-          run.attemptedMutationId !== task.attemptedMutationId
-        ) {
-          continue
-        }
-
-        if (
-          verification?.attemptedCommand.clientMutationId !==
-          task.attemptedMutationId
-        ) {
-          this.verificationRunByCandidateId.delete(candidateId)
-          run.resolve({ candidateId, status: 'not-required' })
-          this.publish()
-          continue
-        }
-
-        this.activeNetworkCandidateIds.add(candidateId)
-        this.activeRequestCount += 1
-        void this.resolveVerification(verification).then((resolution) => {
-          this.completeVerificationRun(candidateId, run, resolution)
-        })
+        this.startVerificationTask(task)
         continue
       }
 
-      const lane = this.lanes.get(candidateId)
+      this.startMoveTask(task)
+    }
+  }
 
-      if (lane?.phase !== 'ready') {
-        continue
-      }
+  private startVerificationTask(task: VerificationReadyTask) {
+    const { candidateId } = task
+    const run = this.verificationRunByCandidateId.get(candidateId)
+    const verification = this.verificationRequiredByCandidateId.get(candidateId)
 
-      const confirmedCandidate = this.readConfirmedCandidate(candidateId)
+    if (run?.attemptedMutationId !== task.attemptedMutationId) {
+      return
+    }
 
-      if (confirmedCandidate === undefined) {
-        this.lanes.delete(candidateId)
-        const failure = this.createFailure(
-          lane.intent,
-          new MoveExecutionError({
-            kind: 'failed',
-            safeMessage: CANDIDATE_UNAVAILABLE_MESSAGE,
-          }),
-        )
+    if (
+      verification?.attemptedCommand.clientMutationId !==
+      task.attemptedMutationId
+    ) {
+      this.verificationRunByCandidateId.delete(candidateId)
+      run.resolve({ candidateId, status: 'not-required' })
+      this.publish()
+      return
+    }
 
-        this.failureByCandidateId.set(candidateId, failure)
-        this.lastResultByCandidateId.set(candidateId, failure)
-        this.publishAndNotify(failure)
-        continue
-      }
+    this.activeNetworkCandidateIds.add(candidateId)
+    this.activeRequestCount += 1
+    void this.resolveVerification(verification).then((resolution) => {
+      this.completeVerificationRun(candidateId, run, resolution)
+    })
+  }
 
-      if (confirmedCandidate.currentStage === lane.intent.targetStage) {
-        this.lanes.delete(candidateId)
-        this.completeWithoutRequest(lane.intent, confirmedCandidate)
-        continue
-      }
+  private startMoveTask(task: MoveReadyTask) {
+    const { candidateId } = task
+    const lane = this.lanes.get(candidateId)
 
-      const command = this.createCommand(
-        lane.intent.candidateId,
-        lane.intent.targetStage,
-        confirmedCandidate,
+    if (lane?.phase !== 'ready') {
+      return
+    }
+
+    const confirmedCandidate = this.readConfirmedCandidate(candidateId)
+
+    if (confirmedCandidate === undefined) {
+      this.lanes.delete(candidateId)
+      const failure = this.createFailure(
+        lane.intent,
+        new MoveExecutionError({
+          kind: 'failed',
+          safeMessage: CANDIDATE_UNAVAILABLE_MESSAGE,
+        }),
       )
 
-      this.lanes.set(candidateId, {
-        command,
-        intent: lane.intent,
-        phase: 'sending',
-      })
-      this.activeNetworkCandidateIds.add(candidateId)
-      this.activeRequestCount += 1
-      void this.runOperation(command).then((runResult) => {
-        this.completeOperation(candidateId, command, runResult)
-      })
+      this.failureByCandidateId.set(candidateId, failure)
+      this.lastResultByCandidateId.set(candidateId, failure)
+      this.publishAndNotify(failure)
+      return
     }
+
+    if (confirmedCandidate.currentStage === lane.intent.targetStage) {
+      this.lanes.delete(candidateId)
+      this.completeWithoutRequest(lane.intent, confirmedCandidate)
+      return
+    }
+
+    const command = this.createCommand(
+      lane.intent.candidateId,
+      lane.intent.targetStage,
+      confirmedCandidate,
+    )
+
+    this.lanes.set(candidateId, {
+      command,
+      intent: lane.intent,
+      phase: 'sending',
+    })
+    this.activeNetworkCandidateIds.add(candidateId)
+    this.activeRequestCount += 1
+    void this.runOperation(command).then((runResult) => {
+      this.completeOperation(candidateId, command, runResult)
+    })
   }
 
   private readConfirmedCandidate(candidateId: CandidateId) {

@@ -36,6 +36,7 @@ export function CandidateStageColumn({
   const navigationDescriptionId = `${headingId}-navigation-description`
   const prefetchCandidateProps =
     onPrefetchCandidate === undefined ? {} : { onPrefetchCandidate }
+  const focusRequestProps = focusRequest === undefined ? {} : { focusRequest }
 
   return (
     <section
@@ -82,7 +83,7 @@ export function CandidateStageColumn({
         <VirtualizedCandidateList
           candidates={candidates}
           descriptionId={navigationDescriptionId}
-          {...(focusRequest === undefined ? {} : { focusRequest })}
+          {...focusRequestProps}
           key={scrollResetKey}
           label={`${stageLabel} 후보자 ${candidates.length.toLocaleString('ko-KR')}명`}
           onChangeStage={onChangeStage}
