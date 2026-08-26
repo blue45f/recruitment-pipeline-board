@@ -89,3 +89,25 @@
 - 첫 구현은 storage read 예외와 형식만 유효한 잘못된 overlay가 목록 요청을 깨뜨릴 수 있었다. read 오류는 구조화된 503으로 바꾸고 후보자 계약까지 통과하지 못한 overlay는 무시하도록 보완했다.
 - Node MSW에서 `*/api/...` 패턴으로 절대 URL을 호출했고 전용 통합 테스트 20개가 통과했다. 별도 jsdom 테스트 2개로 새 adapter에서도 localStorage 값이 유지되고 제거되는지 확인했다.
 - 실제 Vite 페이지의 격리된 브라우저 탭에서도 목록 요청이 251ms 뒤 MSW 응답을 받는지 확인했다. 첫 후보자를 PATCH한 뒤 페이지를 새로고침하고 상세 API를 다시 호출해 변경 단계와 증가한 revision이 localStorage에서 복원되는 것을 확인했다.
+
+## [api-client] Ky·Zod 응답 경계와 오류 정규화
+
+### 프롬프트 1
+
+> Ky로 받은 응답은 바로 도메인 모델로 사용하지 말고 Zod 스키마로 검증해줘. HTTP 상태 오류, 네트워크 단절, timeout, 응답 스키마 불일치를 하나의 구조화된 오류 타입으로 정규화하되 status, request ID, 재시도 가능 여부, 사용자에게 보여 줄 안전한 메시지를 구분해줘. 원본 서버 메시지나 내부 정보는 UI에 직접 노출하지 말고, TanStack Query와 Error Boundary가 같은 오류 계약으로 재시도와 복구를 처리할 수 있게 단위 테스트를 작성해줘. Ky 자체 재시도는 끄고 mutation의 timeout이나 network 오류는 처리 결과가 불명확하므로 자동 재시도 대상으로 표시하지 마. Query 취소에 사용한 AbortError는 일반 네트워크 오류로 바꾸지 마.
+
+### AI 출력 요지
+
+- 후보자 도메인 안에 Ky client와 목록·상세·단계 변경 API를 두고, 성공 JSON을 `unknown`으로 읽은 뒤 기존 Zod 응답 스키마로 검증했다.
+- `ApiError` 하나에 오류 종류, HTTP status, 응답 헤더 request ID, 재시도 가능 여부, 안전한 사용자 문구를 담고 원본 오류는 `cause`로만 보존했다.
+- 읽기 요청의 408·429·5xx·network·timeout만 후속 Query 재시도 후보로 표시하고 mutation과 schema 오류는 재시도하지 않게 했다.
+
+### 리뷰 / 검증
+
+- 초안은 이전 Ky API 이름인 `prefixUrl`을 사용해 TypeScript가 거부했다. 설치된 Ky 2.0.2 선언과 공식 타입 예시를 확인해 `prefix` 옵션으로 바로잡았다.
+- Ky 2는 HTTP 오류 본문을 이미 `HTTPError.data`에 저장하고 원본 response body를 소비한다. `response.json()`을 다시 호출하는 방식을 기각하고 status와 `x-request-id` 헤더만 신뢰하며, 서버 본문의 message는 안전 문구에 사용하지 않았다.
+- 네트워크 전송을 기다리는 좁은 catch에서만 raw `TypeError`를 network로 분류했다. 성공 뒤 JSON 파싱 오류와 Zod 불일치는 별도 schema 오류로 처리해 프로그래밍·계약 오류가 재시도되지 않게 했다.
+- mutation timeout과 network 오류는 서버가 이미 반영했는지 알 수 없고 현재 `clientMutationId`가 멱등 키로 저장되지는 않으므로 `retryable: false`를 유지했다. Query timeout은 재시도 후보로 구분했다.
+- AbortSignal 취소가 `ApiError`로 감싸지지 않는지, Ky가 503을 자체 재시도하지 않는지, 409의 서버 원문이 `message`와 `safeMessage`에 섞이지 않는지 확인했다.
+- 유효한 목록·상세·단계 변경, strict schema 불일치, 깨진 JSON, 409·503, network, query/mutation timeout, Abort, 잘못된 로컬 요청과 request ID 정제를 포함한 전용 Vitest 13개를 작성했다.
+- 첫 커밋 제목의 `Ky·Zod` 대문자 시작은 Commitlint의 subject-case 규칙이 거부했다. 커밋은 생성되지 않았고 기술명만 소문자로 고쳐 같은 변경을 다시 검증했다.
