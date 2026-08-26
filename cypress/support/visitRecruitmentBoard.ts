@@ -6,6 +6,7 @@ type StableMockApiVisitOptions = Readonly<{
   mockRandomValues?: readonly number[]
   rootFontSizePx?: number
   storageMode?: 'preserve' | 'reset'
+  stubPointerCapture?: boolean
 }>
 
 export function visitRecruitmentBoardWithStableMockApi({
@@ -13,21 +14,24 @@ export function visitRecruitmentBoardWithStableMockApi({
   mockRandomValues,
   rootFontSizePx,
   storageMode = 'reset',
+  stubPointerCapture = false,
 }: StableMockApiVisitOptions = {}) {
   return cy.visit('/', {
     onBeforeLoad(window) {
       let mockRandomValueIndex = 0
 
-      Object.defineProperties(window.HTMLElement.prototype, {
-        releasePointerCapture: {
-          configurable: true,
-          value: () => undefined,
-        },
-        setPointerCapture: {
-          configurable: true,
-          value: () => undefined,
-        },
-      })
+      if (stubPointerCapture) {
+        Object.defineProperties(window.HTMLElement.prototype, {
+          releasePointerCapture: {
+            configurable: true,
+            value: () => undefined,
+          },
+          setPointerCapture: {
+            configurable: true,
+            value: () => undefined,
+          },
+        })
+      }
 
       if (storageMode === 'reset') {
         window.localStorage.clear()

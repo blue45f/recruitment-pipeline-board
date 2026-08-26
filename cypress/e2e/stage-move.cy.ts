@@ -7,6 +7,7 @@ import {
   endCandidatePointerDrag,
   expectCandidatePointerDragActive,
   expectCandidatePointerDragInactive,
+  expectNoCandidatePointerDragArtifacts,
   moveCandidatePointerOutsideBoard,
   moveCandidatePointerToStage,
   startCandidatePointerDrag,
@@ -203,7 +204,10 @@ type StagePatchControl = (
 function visitRecruitmentBoardWithStagePatchControl(
   control: StagePatchControl,
 ) {
-  visitRecruitmentBoardWithStableMockApi({ storageMode: 'reset' })
+  visitRecruitmentBoardWithStableMockApi({
+    storageMode: 'reset',
+    stubPointerCapture: true,
+  })
 
   return cy
     .contains('[role="status"]', BOARD_READY_MESSAGE, { timeout: 5_000 })
@@ -290,9 +294,7 @@ describe('candidate stage move', () => {
   it('작은 포인터 이동과 취소된 터치 제스처는 드래그나 저장으로 이어지지 않는다', () => {
     cy.viewport(1440, 900)
     let patchRequestCount = 0
-    let restorePointerTimers: () => void = () => {
-      throw new Error('포인터 활성화 타이머가 준비되지 않았습니다.')
-    }
+    let restorePointerTimers: () => void = () => undefined
 
     visitRecruitmentBoardWithStagePatchControl(async (_body, { proceed }) => {
       patchRequestCount += 1
@@ -301,9 +303,14 @@ describe('candidate stage move', () => {
     })
 
     getFirstDocumentReviewDragCandidate().then(({ candidateId }) =>
-      beginCandidatePointerGesture(candidateId, {
-        activationDistancePx: 8,
-      })
+      cy
+        .get(`[data-candidate-drag-handle="${candidateId}"]`)
+        .should('have.css', 'touch-action', 'pan-y')
+        .then(() =>
+          beginCandidatePointerGesture(candidateId, {
+            activationDistancePx: 8,
+          }),
+        )
         .then(expectCandidatePointerDragInactive)
         .then(cancelCandidatePointerSession)
         .then(() => cy.clock(0, ['setTimeout', 'clearTimeout']))
@@ -424,7 +431,10 @@ describe('candidate stage move', () => {
     cy.viewport(1440, 900)
     shouldResetReducedMotion = true
     emulateReducedMotion(true)
-    visitRecruitmentBoardWithStableMockApi({ storageMode: 'reset' })
+    visitRecruitmentBoardWithStableMockApi({
+      storageMode: 'reset',
+      stubPointerCapture: true,
+    })
 
     getFirstDocumentReviewDragCandidate()
       .then(({ candidateId }) => startCandidatePointerDrag(candidateId))
@@ -1201,10 +1211,7 @@ describe('candidate stage move', () => {
           clientX: initialPoint.clientX + 12,
           clientY: initialPoint.clientY,
         })
-        cy.get('[data-candidate-drag-overlay]').should('not.exist')
-        cy.get(
-          '[data-candidate-stage-drop-active="true"], [data-candidate-stage-drop-current="true"]',
-        ).should('not.exist')
+        expectNoCandidatePointerDragArtifacts()
         cy.get('body').trigger('pointerup', {
           ...pointerOptions,
           ...initialPoint,
@@ -1212,8 +1219,7 @@ describe('candidate stage move', () => {
         })
       })
     })
-    cy.get('[data-candidate-drag-overlay]').should('not.exist')
-    cy.get('[data-candidate-stage-drop-active="true"]').should('not.exist')
+    expectNoCandidatePointerDragArtifacts()
     cy.then(() => expect(compensationRequestCount).to.equal(2))
     cy.injectAxe()
     checkBodyA11y()

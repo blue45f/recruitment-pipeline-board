@@ -182,7 +182,7 @@ export function CandidateCard({
               : `${candidate.name} 후보자 드래그 · 단계 변경`
           }
           className={cn(
-            'w-full',
+            'w-full touch-pan-y',
             !isStageChangeDisabled && 'cursor-grab active:cursor-grabbing',
           )}
           data-candidate-drag-handle={candidate.id}

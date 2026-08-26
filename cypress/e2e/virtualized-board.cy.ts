@@ -87,7 +87,10 @@ describe('virtualized candidate board', () => {
 
   it('드래그 중인 후보자는 가상 범위 밖으로 스크롤해도 유지한다', () => {
     cy.viewport(1440, 900)
-    visitRecruitmentBoardWithStableMockApi({ listSize: 1_000 })
+    visitRecruitmentBoardWithStableMockApi({
+      listSize: 1_000,
+      stubPointerCapture: true,
+    })
 
     cy.contains('[role="status"]', '전체 1,000명 중 1,000명을 표시합니다.', {
       timeout: 8_000,

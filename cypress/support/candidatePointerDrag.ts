@@ -18,6 +18,9 @@ type CandidatePointerGestureOptions = Readonly<{
 }>
 
 let pointerIdSequence = 10
+const DRAG_OVERLAY_SELECTOR = '[data-candidate-drag-overlay]'
+const DROP_STATE_SELECTOR =
+  '[data-candidate-stage-drop-active="true"], [data-candidate-stage-drop-current="true"]'
 
 function centerPoint(element: Element): PointerPoint {
   const bounds = element.getBoundingClientRect()
@@ -124,17 +127,14 @@ export function beginCandidatePointerGesture(
 export function expectCandidatePointerDragInactive(
   session: CandidatePointerDragSession,
 ): Cypress.Chainable<CandidatePointerDragSession> {
+  return expectNoCandidatePointerDragArtifacts().then(() => session)
+}
+
+export function expectNoCandidatePointerDragArtifacts() {
   return cy
-    .get('[data-candidate-drag-overlay]')
+    .get(DRAG_OVERLAY_SELECTOR)
     .should('not.exist')
-    .then(() =>
-      cy
-        .get(
-          '[data-candidate-stage-drop-active="true"], [data-candidate-stage-drop-current="true"]',
-        )
-        .should('not.exist'),
-    )
-    .then(() => session)
+    .then(() => cy.get(DROP_STATE_SELECTOR).should('not.exist'))
 }
 
 export function expectCandidatePointerDragActive(
@@ -147,7 +147,7 @@ export function expectCandidatePointerDragActive(
     .then(() => session)
     .then((session) =>
       cy
-        .get('[data-candidate-drag-overlay]')
+        .get(DRAG_OVERLAY_SELECTOR)
         .should('exist')
         .then(() => session),
     )
@@ -219,9 +219,7 @@ export function moveCandidatePointerOutsideBoard(
     })
     .then((movedSession) =>
       cy
-        .get(
-          '[data-candidate-stage-drop-active="true"], [data-candidate-stage-drop-current="true"]',
-        )
+        .get(DROP_STATE_SELECTOR)
         .should('not.exist')
         .then(() => movedSession),
     )
@@ -229,14 +227,7 @@ export function moveCandidatePointerOutsideBoard(
 
 export function endCandidatePointerDrag(session: CandidatePointerDragSession) {
   return triggerGlobalPointer('pointerup', session, 0)
-    .then(() => cy.get('[data-candidate-drag-overlay]').should('not.exist'))
-    .then(() =>
-      cy
-        .get(
-          '[data-candidate-stage-drop-active="true"], [data-candidate-stage-drop-current="true"]',
-        )
-        .should('not.exist'),
-    )
+    .then(expectNoCandidatePointerDragArtifacts)
     .then(() => undefined)
 }
 
@@ -258,17 +249,7 @@ export function cancelCandidatePointerDrag() {
     key: 'Escape',
   })
 
-  return cy
-    .get('[data-candidate-drag-overlay]')
-    .should('not.exist')
-    .then(() =>
-      cy
-        .get(
-          '[data-candidate-stage-drop-active="true"], [data-candidate-stage-drop-current="true"]',
-        )
-        .should('not.exist'),
-    )
-    .then(() => undefined)
+  return expectNoCandidatePointerDragArtifacts().then(() => undefined)
 }
 
 export function dragCandidateToStage(
