@@ -27,6 +27,7 @@ export const TwoHundredCandidates: Story = {
   args: {
     candidatesByStage: groupCandidatesByStage(candidates),
     onChangeStage: fn(),
+    onMoveCandidate: fn(),
     onOpenCandidate: fn(),
     onPrefetchCandidate: fn(),
   },
@@ -41,6 +42,7 @@ export const ThousandCandidates: Story = {
   args: {
     candidatesByStage: groupCandidatesByStage(performanceCandidates),
     onChangeStage: fn(),
+    onMoveCandidate: fn(),
     onOpenCandidate: fn(),
     onPrefetchCandidate: fn(),
   },

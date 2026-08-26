@@ -56,6 +56,7 @@ function DetailModalFrame({ candidate }: Readonly<{ candidate: Candidate }>) {
           <CandidateBoardView
             candidatesByStage={groupCandidatesByStage(candidates)}
             onChangeStage={fn()}
+            onMoveCandidate={fn()}
             onOpenCandidate={openCandidate}
           />
         </section>

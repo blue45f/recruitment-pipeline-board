@@ -54,6 +54,7 @@ describe('CandidateBoardView', () => {
       <CandidateBoardView
         candidatesByStage={groupCandidatesByStage(candidates)}
         onChangeStage={onChangeStage}
+        onMoveCandidate={vi.fn()}
         onOpenCandidate={onOpenCandidate}
         onPrefetchCandidate={onPrefetchCandidate}
       />,
@@ -123,10 +124,19 @@ describe('CandidateBoardView', () => {
     expect(onOpenCandidate).toHaveBeenCalledExactlyOnceWith(firstCandidate.id)
 
     const stageChangeButton = within(card).getByRole('button', {
-      name: `${firstCandidate.name} 후보자 단계 변경`,
+      name: `${firstCandidate.name} 후보자 드래그 · 단계 변경`,
     })
+    const navigationDescriptionId = `candidate-stage-${firstCandidate.currentStage}-navigation-description`
 
     expect(stageChangeButton).toHaveAttribute('tabindex', '-1')
+    expect(stageChangeButton).toHaveAttribute(
+      'data-candidate-drag-handle',
+      firstCandidate.id,
+    )
+    expect(within(card).getAllByRole('button')).toHaveLength(2)
+    expect(stageChangeButton).not.toHaveAttribute('aria-roledescription')
+    expect(stageChangeButton).not.toHaveAttribute('aria-pressed')
+    expect(stageChangeButton).not.toHaveAttribute('aria-grabbed')
     await user.keyboard('{ArrowRight}')
 
     expect(stageChangeButton).toHaveFocus()
@@ -136,6 +146,20 @@ describe('CandidateBoardView', () => {
       'aria-keyshortcuts',
       'ArrowLeft ArrowRight ArrowUp ArrowDown Home End',
     )
+    expect(stageChangeButton).toHaveAttribute(
+      'aria-describedby',
+      navigationDescriptionId,
+    )
+    expect(
+      screen
+        .getAllByText(
+          /포인터로는 같은 버튼을 끌어 다른 단계에 놓을 수 있습니다/,
+        )
+        .find(
+          (description) =>
+            description.getAttribute('id') === navigationDescriptionId,
+        ),
+    ).toBeInTheDocument()
 
     await user.keyboard(' ')
 
@@ -168,6 +192,7 @@ describe('CandidateBoardView', () => {
       <CandidateBoardView
         candidatesByStage={candidatesByStage}
         onChangeStage={vi.fn()}
+        onMoveCandidate={vi.fn()}
         onOpenCandidate={onOpenCandidate}
       />,
     )
@@ -219,6 +244,7 @@ describe('CandidateBoardView', () => {
       <CandidateBoardView
         candidatesByStage={candidatesByStage}
         onChangeStage={vi.fn()}
+        onMoveCandidate={vi.fn()}
         onOpenCandidate={vi.fn()}
       />,
     )
@@ -296,6 +322,7 @@ describe('CandidateBoardView', () => {
       <CandidateBoardView
         candidatesByStage={candidatesByStage}
         onChangeStage={onChangeStage}
+        onMoveCandidate={vi.fn()}
         onOpenCandidate={vi.fn()}
         pendingCandidateIds={new Set([firstCandidate.id])}
       />,
@@ -345,6 +372,7 @@ describe('CandidateBoardView', () => {
     const commonProps = {
       candidatesByStage,
       onChangeStage: vi.fn(),
+      onMoveCandidate: vi.fn(),
       onOpenCandidate: vi.fn(),
     }
     const { rerender } = render(<CandidateBoardView {...commonProps} />)
@@ -364,7 +392,7 @@ describe('CandidateBoardView', () => {
       name: new RegExp(`^${candidate.name} 후보자,`),
     })
     const stageChangeButton = within(list).getByRole('button', {
-      name: `${candidate.name} 후보자 단계 변경`,
+      name: `${candidate.name} 후보자 드래그 · 단계 변경`,
     })
 
     await waitFor(() => expect(detailButton).toHaveFocus())
@@ -394,6 +422,7 @@ describe('CandidateBoardView', () => {
       <CandidateBoardView
         candidatesByStage={initialCandidatesByStage}
         onChangeStage={vi.fn()}
+        onMoveCandidate={vi.fn()}
         onOpenCandidate={vi.fn()}
       />,
     )
@@ -407,6 +436,7 @@ describe('CandidateBoardView', () => {
         candidatesByStage={groupCandidatesByStage(projectedCandidates)}
         focusRequest={{ candidateId: candidate.id, requestId: 1 }}
         onChangeStage={vi.fn()}
+        onMoveCandidate={vi.fn()}
         onOpenCandidate={vi.fn()}
         pendingCandidateIds={new Set([candidate.id])}
       />,
@@ -450,6 +480,7 @@ describe('CandidateBoardView', () => {
       <CandidateBoardView
         candidatesByStage={candidatesByStage}
         onChangeStage={vi.fn()}
+        onMoveCandidate={vi.fn()}
         onOpenCandidate={vi.fn()}
         scrollResetKey="all"
       />,
@@ -466,6 +497,7 @@ describe('CandidateBoardView', () => {
       <CandidateBoardView
         candidatesByStage={candidatesByStage}
         onChangeStage={vi.fn()}
+        onMoveCandidate={vi.fn()}
         onOpenCandidate={vi.fn()}
         scrollResetKey="frontend-only"
       />,
@@ -487,6 +519,7 @@ describe('CandidateBoardView', () => {
       <CandidateBoardView
         candidatesByStage={groupCandidatesByStage(candidates)}
         onChangeStage={vi.fn()}
+        onMoveCandidate={vi.fn()}
         onOpenCandidate={vi.fn()}
       />,
     )
@@ -539,6 +572,7 @@ describe('CandidateBoardView', () => {
       <CandidateBoardView
         candidatesByStage={groupCandidatesByStage(candidates)}
         onChangeStage={vi.fn()}
+        onMoveCandidate={vi.fn()}
         onOpenCandidate={vi.fn()}
       />,
     )
@@ -611,6 +645,7 @@ describe('CandidateBoardView', () => {
       <CandidateBoardView
         candidatesByStage={groupCandidatesByStage(candidates)}
         onChangeStage={vi.fn()}
+        onMoveCandidate={vi.fn()}
         onOpenCandidate={vi.fn()}
         onPrefetchCandidate={onPrefetchCandidate}
       />,

@@ -1,3 +1,8 @@
+import {
+  cancelCandidatePointerDrag,
+  moveCandidatePointerToStage,
+  startCandidatePointerDrag,
+} from '../support/candidatePointerDrag'
 import { visitRecruitmentBoardWithStableMockApi } from '../support/visitRecruitmentBoard'
 
 const DESKTOP_VIEWPORT = { height: 900, width: 1440 } as const
@@ -45,6 +50,54 @@ function waitForStableBoard() {
   })
 }
 
+function waitForStableDragOverlay() {
+  return cy
+    .get<HTMLElement>('[data-dnd-overlay]')
+    .should('exist')
+    .then(($overlay) => {
+      const overlay = $overlay.get(0)
+      const browserWindow = overlay.ownerDocument.defaultView
+
+      if (browserWindow === null) {
+        throw new Error('드래그 위치를 확인할 브라우저 창을 찾지 못했습니다.')
+      }
+
+      return new Cypress.Promise<void>((resolve, reject) => {
+        let previousTranslate: string | undefined
+        let remainingFrames = 12
+
+        const sampleTranslate = () => {
+          const currentTranslate =
+            browserWindow.getComputedStyle(overlay).translate
+
+          if (
+            currentTranslate !== 'none' &&
+            currentTranslate === previousTranslate
+          ) {
+            resolve()
+            return
+          }
+
+          previousTranslate = currentTranslate
+          remainingFrames -= 1
+
+          if (remainingFrames === 0) {
+            reject(
+              new Error(
+                `드래그 위치가 안정되지 않았습니다: ${currentTranslate}`,
+              ),
+            )
+            return
+          }
+
+          browserWindow.requestAnimationFrame(sampleTranslate)
+        }
+
+        browserWindow.requestAnimationFrame(sampleTranslate)
+      })
+    })
+}
+
 function openFirstCandidateDetail() {
   cy.get<HTMLButtonElement>('[data-candidate-id]').first().click()
   cy.get('[role="dialog"] [aria-label$="후보자 상세 정보"]', {
@@ -62,6 +115,31 @@ describe('recruitment board visual regression', () => {
     waitForStableBoard()
 
     cy.compareSnapshot('board-desktop')
+  })
+
+  it('드래그 중인 후보자와 이동 가능한 단계를 구분해 표시한다', () => {
+    cy.viewport(DESKTOP_VIEWPORT.width, DESKTOP_VIEWPORT.height)
+    visitRecruitmentBoardWithStableMockApi({ stubPointerCapture: true })
+    waitForStableBoard()
+
+    cy.get<HTMLButtonElement>(
+      '[data-candidate-stage-drop-zone="document_review"] [data-candidate-drag-handle]',
+    )
+      .first()
+      .should('be.visible')
+      .then(($handle) => {
+        const candidateId = $handle.attr('data-candidate-drag-handle')
+
+        expect(candidateId, 'drag candidate id')
+          .to.be.a('string')
+          .and.not.equal('')
+
+        return startCandidatePointerDrag(String(candidateId))
+      })
+      .then((session) => moveCandidatePointerToStage(session, 'interview'))
+      .then(() => waitForStableDragOverlay())
+      .then(() => cy.compareSnapshot('board-drag-desktop'))
+      .then(() => cancelCandidatePointerDrag())
   })
 
   it('모바일 보드 기준 화면과 일치한다', () => {

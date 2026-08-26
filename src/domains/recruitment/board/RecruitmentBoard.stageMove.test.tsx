@@ -371,7 +371,7 @@ describe('RecruitmentBoard candidate stage move', () => {
 
     await user.click(
       await screen.findByRole('button', {
-        name: `${candidate.name} 후보자 단계 변경`,
+        name: `${candidate.name} 후보자 드래그 · 단계 변경`,
       }),
     )
 
@@ -426,7 +426,7 @@ describe('RecruitmentBoard candidate stage move', () => {
       expect(
         within(getStageSection(candidate.currentStage)).getByRole('button', {
           hidden: true,
-          name: `${candidate.name} 후보자 단계 변경`,
+          name: `${candidate.name} 후보자 드래그 · 단계 변경`,
         }),
       ).toHaveFocus()
     })
@@ -501,7 +501,7 @@ describe('RecruitmentBoard candidate stage move', () => {
 
     await user.click(
       await screen.findByRole('button', {
-        name: `${candidate.name} 후보자 단계 변경`,
+        name: `${candidate.name} 후보자 드래그 · 단계 변경`,
       }),
     )
     const dialog = await screen.findByRole('dialog', {
@@ -547,7 +547,7 @@ describe('RecruitmentBoard candidate stage move', () => {
     await waitFor(() => {
       expect(
         screen.getByRole('button', {
-          name: `${candidate.name} 후보자 단계 변경`,
+          name: `${candidate.name} 후보자 드래그 · 단계 변경`,
         }),
       ).toHaveFocus()
     })
@@ -618,7 +618,7 @@ describe('RecruitmentBoard candidate stage move', () => {
 
     await user.click(
       await screen.findByRole('button', {
-        name: `${candidate.name} 후보자 단계 변경`,
+        name: `${candidate.name} 후보자 드래그 · 단계 변경`,
       }),
     )
     let dialog = await screen.findByRole('dialog', {
@@ -704,7 +704,7 @@ describe('RecruitmentBoard candidate stage move', () => {
     expect(
       within(getStageSection(finalTargetStage)).getByRole('button', {
         hidden: true,
-        name: `${candidate.name} 후보자 단계 변경`,
+        name: `${candidate.name} 후보자 드래그 · 단계 변경`,
       }),
     ).not.toHaveAttribute('aria-busy')
   })
@@ -913,7 +913,7 @@ describe('RecruitmentBoard candidate stage move', () => {
     const submitMove = async (candidate: Candidate, stage: CandidateStage) => {
       await user.click(
         await screen.findByRole('button', {
-          name: `${candidate.name} 후보자 단계 변경`,
+          name: `${candidate.name} 후보자 드래그 · 단계 변경`,
         }),
       )
 

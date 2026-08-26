@@ -1,4 +1,4 @@
-import { ArrowRightLeft, CalendarDays, LoaderCircle } from 'lucide-react'
+import { CalendarDays, GripVertical, LoaderCircle } from 'lucide-react'
 import { useEffect, useRef, type KeyboardEvent, type Ref } from 'react'
 
 import { Badge } from '@/components/ui/Badge'
@@ -16,8 +16,10 @@ import { formatCandidateCompactDate } from './formatCandidateDate'
 
 export type CandidateCardProps = Readonly<{
   activeAction?: CandidateCardAction
+  cardRef?: Ref<HTMLElement>
   candidate: Candidate
   detailButtonRef?: Ref<HTMLButtonElement>
+  isDragging?: boolean
   isStageChangeDisabled?: boolean
   isStageChangePending?: boolean
   keyboardNavigationDescriptionId?: string
@@ -42,8 +44,10 @@ const INTENT_PREFETCH_DELAY_MS = 120
 
 export function CandidateCard({
   activeAction,
+  cardRef,
   candidate,
   detailButtonRef,
+  isDragging = false,
   isStageChangeDisabled = false,
   isStageChangePending = false,
   keyboardNavigationDescriptionId,
@@ -58,6 +62,8 @@ export function CandidateCard({
   const stage = CANDIDATE_STAGE_PRESENTATION[candidate.currentStage]
   const stageLabel = CANDIDATE_STAGE_LABELS[candidate.currentStage]
   const roleLabel = CANDIDATE_ROLE_LABELS[candidate.role]
+  const stageChangeDescriptionId =
+    activeAction === 'stage' ? keyboardNavigationDescriptionId : undefined
   const cancelPrefetch = () => {
     if (prefetchTimer.current !== null) {
       window.clearTimeout(prefetchTimer.current)
@@ -82,7 +88,15 @@ export function CandidateCard({
   )
 
   return (
-    <article className="relative min-h-40 overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-paper)] shadow-[0_1px_2px_rgba(24,32,51,0.04)] transition-[border-color,box-shadow,transform] duration-150 focus-within:border-[var(--color-cobalt)] hover:-translate-y-0.5 hover:border-[var(--color-cobalt)] hover:shadow-[0_10px_28px_rgba(24,32,51,0.10)] motion-reduce:transform-none motion-reduce:transition-none">
+    <article
+      className={cn(
+        'relative min-h-40 overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-paper)] shadow-[0_1px_2px_rgba(24,32,51,0.04)] transition-[border-color,box-shadow,opacity,transform] duration-150 focus-within:border-[var(--color-cobalt)] hover:-translate-y-0.5 hover:border-[var(--color-cobalt)] hover:shadow-[0_10px_28px_rgba(24,32,51,0.10)] motion-reduce:transform-none motion-reduce:transition-none',
+        isDragging &&
+          'scale-[0.985] border-[var(--color-cobalt)] shadow-none ring-2 ring-[var(--color-cobalt-soft)]',
+      )}
+      data-candidate-dragging={isDragging || undefined}
+      ref={cardRef}
+    >
       <span
         aria-hidden="true"
         className={cn('absolute inset-y-0 left-0 w-1', stage.accentClassName)}
@@ -154,11 +168,7 @@ export function CandidateCard({
       </button>
       <div className="border-t border-[var(--color-line)] p-2 pl-3">
         <Button
-          aria-describedby={
-            activeAction === 'stage'
-              ? keyboardNavigationDescriptionId
-              : undefined
-          }
+          aria-describedby={stageChangeDescriptionId}
           aria-haspopup="dialog"
           aria-keyshortcuts={
             activeAction === 'stage' && keyboardNavigationDescriptionId
@@ -169,9 +179,13 @@ export function CandidateCard({
           aria-label={
             isStageChangePending
               ? `${candidate.name} 후보자 저장 중 · 변경`
-              : `${candidate.name} 후보자 단계 변경`
+              : `${candidate.name} 후보자 드래그 · 단계 변경`
           }
-          className="w-full"
+          className={cn(
+            'w-full touch-pan-y',
+            !isStageChangeDisabled && 'cursor-grab active:cursor-grabbing',
+          )}
+          data-candidate-drag-handle={candidate.id}
           data-stage-change-candidate-id={candidate.id}
           disabled={isStageChangeDisabled}
           onClick={() => onChangeStage(candidate)}
@@ -190,9 +204,9 @@ export function CandidateCard({
               className="size-4 animate-spin motion-reduce:animate-none"
             />
           ) : (
-            <ArrowRightLeft aria-hidden="true" className="size-4" />
+            <GripVertical aria-hidden="true" className="size-4" />
           )}
-          {isStageChangePending ? '저장 중 · 변경' : '단계 변경'}
+          {isStageChangePending ? '저장 중 · 변경' : '드래그 · 단계 변경'}
         </Button>
       </div>
     </article>
