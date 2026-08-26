@@ -46,7 +46,6 @@ describe('candidate detail panel', () => {
 
         cy.injectAxe()
         cy.checkA11y('[role="dialog"]')
-        cy.screenshot('detail-panel/desktop')
         cy.get('body').type('{esc}')
         cy.get('[role="dialog"]').should('not.exist')
         cy.focused()
@@ -79,6 +78,5 @@ describe('candidate detail panel', () => {
       expect(width).to.be.at.least(44)
       expect(height).to.be.at.least(44)
     })
-    cy.screenshot('detail-panel/mobile')
   })
 })

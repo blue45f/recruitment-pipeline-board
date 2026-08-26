@@ -38,3 +38,33 @@ jobs:
 
       - name: Run Cypress smoke test
         run: pnpm e2e:ci
+
+  visual-regression:
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container:
+      image: cypress/browsers:node-24.19.0-chrome-151.0.7922.137-1-ff-154.0-edge-151.0.4129.93-1
+      options: --user 1001
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compare visual snapshots
+        run: pnpm visual:ci
+
+      - name: Upload visual diff
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-regression-diff
+          if-no-files-found: ignore
+          path: cypress/screenshots
+          retention-days: 7

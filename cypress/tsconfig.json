@@ -6,5 +6,9 @@
     "strict": true,
     "types": ["cypress", "cypress-axe"]
   },
-  "include": ["./**/*.ts", "../cypress.config.ts"]
+  "include": [
+    "./**/*.ts",
+    "../cypress.config.ts",
+    "../cypress.visual.config.ts"
+  ]
 }

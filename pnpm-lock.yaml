@@ -146,6 +146,9 @@ importers:
       cypress-axe:
         specifier: ^1.7.0
         version: 1.7.0(axe-core@4.13.0)(cypress@15.21.0)
+      cypress-visual-regression:
+        specifier: 6.0.0
+        version: 6.0.0(cypress@15.21.0)
       eslint:
         specifier: ^9.39.5
         version: 9.39.5(jiti@2.7.0)
@@ -4901,6 +4904,15 @@ packages:
       axe-core: ^3 || ^4
       cypress: ^10 || ^11 || ^12 || ^13 || ^14 || ^15
 
+  cypress-visual-regression@6.0.0:
+    resolution:
+      {
+        integrity: sha512-cpkUHNggIbC8lt7xIz+XY+Gg5m9vsfNbQO9FqNORAzprBVBfXsUpboqWWt1ITCmkOaFwIdpwc+yt/TJ5rSr6Yw==,
+      }
+    engines: { node: '>=18' }
+    peerDependencies:
+      cypress: '>=15'
+
   cypress@15.21.0:
     resolution:
       {
@@ -7449,6 +7461,13 @@ packages:
       }
     engines: { node: '>=0.10.0' }
 
+  pixelmatch@7.2.0:
+    resolution:
+      {
+        integrity: sha512-xhcb4yHu9sM/G7foGzoLtXYcC0zHEaOXXjRKhGup0fw78Nf2Tkiapv4EQyMzrbcmQPsllAI7DbFY2UT7PlI9Pg==,
+      }
+    hasBin: true
+
   pluralize@2.0.0:
     resolution:
       {
@@ -7461,6 +7480,13 @@ packages:
         integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==,
       }
     engines: { node: '>=4' }
+
+  pngjs@7.0.0:
+    resolution:
+      {
+        integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==,
+      }
+    engines: { node: '>=14.19.0' }
 
   possible-typed-array-names@1.1.0:
     resolution:
@@ -7915,6 +7941,12 @@ packages:
     resolution:
       {
         integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==,
+      }
+
+  sanitize-filename@1.6.4:
+    resolution:
+      {
+        integrity: sha512-9ZyI08PsvdQl2r/bBIGubpVdR3RR9sY6RDiWFPreA21C/EFlQhmgo20UZlNjZMMZNubusLhAQozkA0Od5J21Eg==,
       }
 
   saxes@6.0.0:
@@ -8579,6 +8611,12 @@ packages:
       }
     hasBin: true
 
+  truncate-utf8-bytes@1.0.2:
+    resolution:
+      {
+        integrity: sha512-95Pu1QXQvruGEhv62XCMO3Mm90GscOCClvrIUwCM0PYOXK3kaF3l3sIHxx71ThJfcbM2O5Au6SO3AWCSEfW4mQ==,
+      }
+
   ts-api-utils@2.5.0:
     resolution:
       {
@@ -8817,6 +8855,12 @@ packages:
       }
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  utf8-byte-length@1.0.5:
+    resolution:
+      {
+        integrity: sha512-Xn0w3MtiQ6zoz2vFyUVruaCL53O/DwUvkEeOvj+uulMm0BkUGYWmBYVyElqZaSLhY6ZD0ulfU3aBra2aVT4xfA==,
+      }
 
   validate-npm-package-license@3.0.4:
     resolution:
@@ -12086,6 +12130,14 @@ snapshots:
       axe-core: 4.13.0
       cypress: 15.21.0
 
+  cypress-visual-regression@6.0.0(cypress@15.21.0):
+    dependencies:
+      chalk: 5.6.2
+      cypress: 15.21.0
+      pixelmatch: 7.2.0
+      pngjs: 7.0.0
+      sanitize-filename: 1.6.4
+
   cypress@15.21.0:
     dependencies:
       '@cypress/request': 4.0.1
@@ -13780,9 +13832,15 @@ snapshots:
 
   pify@2.3.0: {}
 
+  pixelmatch@7.2.0:
+    dependencies:
+      pngjs: 7.0.0
+
   pluralize@2.0.0: {}
 
   pluralize@8.0.0: {}
+
+  pngjs@7.0.0: {}
 
   possible-typed-array-names@1.1.0: {}
 
@@ -14109,6 +14167,10 @@ snapshots:
       is-regex: 1.2.1
 
   safer-buffer@2.1.2: {}
+
+  sanitize-filename@1.6.4:
+    dependencies:
+      truncate-utf8-bytes: 1.0.2
 
   saxes@6.0.0:
     dependencies:
@@ -14536,6 +14598,10 @@ snapshots:
 
   tree-kill@1.2.2: {}
 
+  truncate-utf8-bytes@1.0.2:
+    dependencies:
+      utf8-byte-length: 1.0.5
+
   ts-api-utils@2.5.0(typescript@5.9.3):
     dependencies:
       typescript: 5.9.3
@@ -14700,6 +14766,8 @@ snapshots:
   use-sync-external-store@1.6.0(react@19.2.8):
     dependencies:
       react: 19.2.8
+
+  utf8-byte-length@1.0.5: {}
 
   validate-npm-package-license@3.0.4:
     dependencies:
