@@ -64,7 +64,8 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Install Cypress binary
-        run: pnpm exec cypress install
+        # 의존성 lifecycle script는 계속 막고, lockfile에 고정된 Cypress 바이너리만 설치한다.
+        run: ./node_modules/.bin/cypress install
 
       - name: Compare visual snapshots
         run: pnpm visual:ci
