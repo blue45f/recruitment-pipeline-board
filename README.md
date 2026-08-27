@@ -66,14 +66,21 @@ SonarQube Community Build의 공식 최소 사양에 맞춰 Docker에 4GB 이상
 
 ## 기술 구성
 
-- React 19, Vite 8, TypeScript, React Compiler
-- React Router, TanStack Query, Zustand
-- Ky, MSW, Zod, React Hook Form
-- Tailwind CSS, Radix UI, TanStack Virtual
+- React 19, Vite 8, TypeScript, React Compiler — client-only 애플리케이션과 빌드
+- React Router — URL 진입점과 검색 조건 복원
+- TanStack Query, Zustand — 서버 cache와 짧은 UI 상태의 분리
+- Ky, MSW, Zod — HTTP 전송, 브라우저 Mock API와 런타임 계약 검증
+- React Hook Form, react-error-boundary — 폼 상태와 화면 단위 오류 복구
+- Tailwind CSS, Radix UI, CVA, clsx, tailwind-merge — semantic token과 접근성 primitive
+- `@dnd-kit/*` — 포인터 드래그 센서, 충돌 판정과 피드백
+- TanStack Virtual — 단계별 가상 목록과 가변 높이 측정
+- Sonner — 조작이 필요하지 않은 일시적 결과 안내
 - Vitest, Testing Library, Cypress, Storybook
 - ESLint, Prettier, Secretlint, Knip
 - SonarQube Community Build
 - Husky, lint-staged, Commitlint
+
+주요 라이브러리에 맡기는 책임, 직접 구현하는 경계와 선택하지 않은 대안은 [DECISIONS.md](./DECISIONS.md)에 정리했습니다.
 
 ## 디자인 원칙
 
