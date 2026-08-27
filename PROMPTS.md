@@ -773,20 +773,21 @@
 
 ### 커밋과 프롬프트 대응
 
-| 작업 흐름            | 기능 커밋            | PROMPTS 기록                                    |
-| -------------------- | -------------------- | ----------------------------------------------- |
-| 프로젝트 기반        | `c5d73b1`            | 프로젝트 기반 구성                              |
-| PR #1 후보자 계약    | `da551fa`            | `[candidate-contracts]`                         |
-| PR #2 Mock·API 경계  | `df9be81`–`ec75a03`  | `[mock-api]`, `[api-client]`, 후속 리뷰         |
-| PR #3 디자인 시스템  | `ee02849`–`a8bcffe`  | `[design-system]`, 후속 리뷰                    |
-| PR #4 조회·보드·상세 | `109d410`–`f774620`  | `[candidate-query]`부터 `[detail-panel]`까지    |
-| PR #5 시각 회귀      | `aedc67d`–`8a62ff8`  | `[visual-regression]`, 후속 리뷰                |
-| PR #6 가상 목록      | `9dc3a1b`–`51a12e2`  | `[virtualization]`                              |
-| PR #7 단계 변경      | `fac1fdd`–`6d032e3`  | `[stage-move]`, 후속 리뷰와 화면 승인           |
-| PR #8 낙관적 이동    | `2f7e22f`–`15fe1ef`  | `[optimistic-update]`, `[move-race]`, 후속 리뷰 |
-| PR #9 Undo           | `34d698e`–`32cdd68`  | `[undo]`, 후속 리뷰                             |
-| PR #10 드래그 이동   | `9f2772f`–`f5d8810`  | `[drag-and-drop]`, 후속 리뷰와 화면 승인        |
-| PR #11 최종 감사     | `bca22f1`, `007dbd6` | `[performance-a11y]`, `[release-readiness]`     |
+| 작업 흐름              | 기능 커밋            | PROMPTS 기록                                    |
+| ---------------------- | -------------------- | ----------------------------------------------- |
+| 프로젝트 기반          | `c5d73b1`            | 프로젝트 기반 구성                              |
+| PR #1 후보자 계약      | `da551fa`            | `[candidate-contracts]`                         |
+| PR #2 Mock·API 경계    | `df9be81`–`ec75a03`  | `[mock-api]`, `[api-client]`, 후속 리뷰         |
+| PR #3 디자인 시스템    | `ee02849`–`a8bcffe`  | `[design-system]`, 후속 리뷰                    |
+| PR #4 조회·보드·상세   | `109d410`–`f774620`  | `[candidate-query]`부터 `[detail-panel]`까지    |
+| PR #5 시각 회귀        | `aedc67d`–`8a62ff8`  | `[visual-regression]`, 후속 리뷰                |
+| PR #6 가상 목록        | `9dc3a1b`–`51a12e2`  | `[virtualization]`                              |
+| PR #7 단계 변경        | `fac1fdd`–`6d032e3`  | `[stage-move]`, 후속 리뷰와 화면 승인           |
+| PR #8 낙관적 이동      | `2f7e22f`–`15fe1ef`  | `[optimistic-update]`, `[move-race]`, 후속 리뷰 |
+| PR #9 Undo             | `34d698e`–`32cdd68`  | `[undo]`, 후속 리뷰                             |
+| PR #10 드래그 이동     | `9f2772f`–`f5d8810`  | `[drag-and-drop]`, 후속 리뷰와 화면 승인        |
+| PR #11 최종 감사       | `bca22f1`, `007dbd6` | `[performance-a11y]`, `[release-readiness]`     |
+| PR #12 라이브러리 결정 | `7f0675d`            | `[library-decisions]`                           |
 
 ### 리뷰 / 검증
 
@@ -825,3 +826,4 @@
 - TanStack Virtual은 semantic markup, candidate ID key, 가변 높이, offscreen focus와 드래그 카드 고정을 직접 제어할 수 있어 유지했다. React Virtuoso, react-window와 가상화 생략의 장단점은 백업 비교 문서와 현재 구현을 함께 확인해 요약했다.
 - 독립 읽기 전용 리뷰는 P0·P1 없이 표현 정확도 P2 네 건을 찾았다. 충돌 판정의 실제 `@dnd-kit/collision` 소유, Radix Label 사용, 필터와 단계 변경 폼의 서로 다른 React Hook Form 책임, `react-error-boundary`의 격리·reset 경계를 source import와 대조해 모두 수정했다. 수정 후 재검토에서 남은 P0·P1·P2가 없고, 최상위 결정도 여전히 다섯 개인 것을 확인했다.
 - 문서 외 코드와 dependency는 변경하지 않았다. Node 24와 pnpm 11 환경의 `pnpm check`에서 Prettier, ESLint, Secretlint, Knip, 애플리케이션·Cypress 타입 검사, production build, Vitest 40개 파일의 283개 테스트와 Storybook build가 통과했다. App 청크의 기존 579.02kB 경고는 그대로 남았다.
+- PR #12의 GitHub Actions 실행 `33034652858`에서 Quality가 3분 10초, Linux 시각 회귀가 1분 39초에 통과했다. SonarCloud Quality Gate와 Vercel Preview도 통과했다. CodeRabbit 자동 리뷰는 별이 10개 미만인 공개 저장소 정책으로 건너뛰어 수동 리뷰를 한 번 요청했고, 변경된 세 문서에서 조치할 의견 없이 최소 병합 위험으로 완료됐다. 인라인 리뷰 스레드는 0건이었다.
