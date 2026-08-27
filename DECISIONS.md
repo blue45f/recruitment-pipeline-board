@@ -1,5 +1,7 @@
 # DECISIONS
 
+결과를 크게 바꾼 다섯 가지 결정만 남긴다. 라이브러리는 설치 목록을 반복하지 않고, 해당 결정 안에서 맡기는 책임과 직접 소유하는 책임, 선택하지 않은 대안을 함께 기록한다.
+
 ## 1. 디렉터리와 상태의 소유권을 분리한다
 
 채용 보드의 모델, API, 조회, 단계 이동, Undo는 `src/domains/recruitment` 안에 둔다. 역할 이름만으로 전역 폴더를 늘리면 한 기능을 수정할 때 여러 위치를 오가게 되므로 사용하지 않는다. `app`은 조립, `routes`는 URL 진입점, `components`와 `lib`는 둘 이상의 영역에서 재사용하는 코드만 맡는다.
@@ -8,6 +10,12 @@
 
 서버에서 온 후보자 목록과 mutation은 TanStack Query가 관리한다. 이름과 직무 조건은 URL에 두고, 현재 연 후보자 ID는 새로고침과 무관한 Zustand 상태로 관리한다. 표시할 데이터 수는 Zod로 검증한 뒤 Zustand persist에 저장한다. 폼 입력과 검증은 React Hook Form과 Zod가 맡는다. 같은 값을 여러 저장소에 복제하는 방식은 동기화 오류가 생기기 쉬워 사용하지 않는다.
 
+### 빌드와 상태 도구
+
+실제 서버 렌더링이 없는 단일 화면 과제이므로 React 19와 Vite를 사용한다. 별도 서버 경계를 추가하는 프레임워크보다 Mock Service Worker를 포함한 정적 산출물을 그대로 배포하기 쉽고, React Compiler도 Vite의 Babel 경계에서 명시적으로 검증할 수 있다. React Router는 URL 진입점과 검색 조건의 복원을 맡기고 같은 값을 별도 routing store에 복사하지 않는다. Compiler가 처리하는 렌더 최적화를 `memo`, `useMemo`, `useCallback`으로 다시 작성하지 않는다.
+
+TanStack Query는 요청 취소, cache 수명, 구조적 공유와 mutation 결과 병합을 맡기고 Zustand는 서버 응답이 아닌 짧은 UI 상태만 맡는다. 한 전역 store가 서버 상태와 화면 상태를 모두 관리하는 방식은 재조회·무효화 정책과 로컬 영속성의 수명을 섞으므로 사용하지 않는다. Zod는 URL, 저장소, DnD payload와 API 입출력처럼 TypeScript 타입이 사라지는 경계에서 실행한다. React Hook Form은 필터의 필드 제어·초기화와 단계 변경 폼의 검증·제출 상태로 범위를 제한한다.
+
 ## 2. 모든 단계 이동은 같은 명시적 경로를 사용한다
 
 키보드와 화면 읽기 도구에서도 같은 기능을 쓸 수 있도록 명시적인 단계 이동 액션을 기준으로 구현한다. 포인터 드래그 앤 드롭은 이를 대체하지 않는 보조 입력으로 추가한다. 두 입력 방식은 같은 mutation 경로를 사용해 동작 차이가 생기지 않게 한다.
@@ -15,6 +23,12 @@
 기존 단계 변경 버튼을 드래그 핸들로 함께 사용해 별도 탭 정지점을 만들지 않는다. 마우스와 펜은 8px을 넘게 움직였을 때 드래그를 시작하고, 터치는 250ms 지연과 8px 허용 거리를 적용해 스크롤과 의도하지 않은 이동을 구분한다. 핸들의 `touch-action`은 `pan-y`로 두어 세로 목록 스크롤을 유지하고 가로 방향 포인터 이동만 드래그에 사용한다. 단계 열 전체를 드롭 영역으로 삼아 후보자가 없는 단계에도 놓을 수 있다.
 
 드래그 완료는 기존 `submitStageMove`에 후보자와 목적 단계만 전달한다. 이후 후보자별 직렬 처리, 최대 네 건의 동시 요청, 서버 receipt, Undo 보상, 실패 rollback, 409와 결과 재확인 정책은 대화상자 이동과 같다. 같은 단계, 목적지가 없는 드롭과 취소는 mutation을 만들지 않는다.
+
+### 포인터 입력과 UI primitive
+
+`@dnd-kit/react`는 provider·drag/drop hook·overlay, `@dnd-kit/dom`은 포인터 센서·자동 스크롤·피드백, `@dnd-kit/collision`은 포인터 충돌 판정까지만 맡는다. 네이티브 HTML Drag and Drop은 터치 입력을 같은 경로로 다루기 어렵고 가상 목록에서 원본 카드의 수명을 직접 보장하기도 어려워 사용하지 않는다. dnd-kit의 접근성 플러그인도 단계 변경 대화상자를 여는 기존 버튼 의미와 충돌하므로 추가하지 않는다. 유효한 드롭을 기존 이동 명령으로 바꾸는 판단과 rollback·Undo는 애플리케이션이 계속 소유한다.
+
+Radix UI는 Dialog, Select, Tooltip, Label, Slot의 focus·portal·label 연결·키보드 primitive로만 사용한다. 완성형 UI kit가 화면 구조와 스타일을 소유하게 하지 않고 Tailwind의 semantic token, 제한적인 CVA variant와 `clsx`·`tailwind-merge`를 감싼 공용 component가 시각 규칙을 맡는다. Sonner는 저장 성공처럼 잠깐 알리는 결과에만 사용하고, 재시도·결과 재확인·Undo처럼 사용자가 다시 조작해야 하는 상태는 보드와 모달 안에 계속 남긴다.
 
 ### 낙관적 갱신, 경쟁 상태와 Undo
 
@@ -38,6 +52,14 @@ Undo 진행 중 다른 후보자의 더 최신 이동이 먼저 끝나면 그 re
 
 보드에 필요한 후보자 목록은 한 번에 조회하고 화면에서 단계별로 나눈다. 독립된 쿼리가 생길 때만 Suspense 경계 안에서 병렬로 시작한다. 필요하지 않은 `useSuspenseQueries`를 먼저 도입하는 대신 실제 요청 구조를 기준으로 waterfall 여부를 측정한다.
 
+### API와 런타임 검증
+
+Ky는 API prefix, timeout, AbortSignal과 HTTP·network·timeout 오류의 공통 전송 경계를 제공한다. Ky의 자동 retry는 끄고 조회 재시도와 mutation 결과 재확인은 TanStack Query와 이동 coordinator가 작업 의미에 맞게 결정한다. 각 endpoint에서 `fetch` 보일러플레이트를 반복하거나 전송 계층이 업무 재시도를 결정하게 하는 방식은 사용하지 않는다.
+
+MSW는 브라우저의 Service Worker와 Vitest의 Node server가 같은 HTTP handler와 repository를 사용하게 한다. component별 함수 stub은 Ky·헤더·직렬화·Zod 응답 경계를 건너뛸 수 있고, 과제에 필요하지 않은 별도 backend는 배포 단위를 늘리므로 선택하지 않는다. 요청과 응답은 항상 Zod로 다시 파싱하고 실패를 안전한 `ApiError`로 정규화한 뒤에만 Query cache로 전달한다.
+
+`react-error-boundary`는 앱, 보드와 상세의 렌더 경계를 격리하고 TanStack Query reset과 연결하는 역할만 맡는다. 오류의 안전한 문구, 재시도 가능 여부와 포커스 복귀 정책은 API와 각 화면이 소유한다. 모든 오류를 앱 전체 fallback 하나로 보내 목록과 상세를 함께 잃는 구조는 사용하지 않는다.
+
 ### 조회 오류 경계
 
 후보자 목록의 Suspense와 Query 오류 경계는 보드 영역에 둔다. 목록 조회가 실패해도 애플리케이션 제목과 기본 안내는 유지하고, 서버 원문 대신 API 경계에서 정규화한 안전한 문구만 보여 준다. 다시 시도할 때는 Query의 오류 상태와 Error Boundary를 함께 초기화해 같은 화면에서 복구한다. 키보드로 재시도한 경우에는 사라지는 버튼 대신 계속 남아 있는 보드 영역으로 포커스를 옮기고, 복구된 인원은 status로 알린다.
@@ -57,6 +79,12 @@ Undo 진행 중 다른 후보자의 더 최신 이동이 먼저 끝나면 그 re
 ## 5. 대용량 목록과 시각 기준은 실제 렌더 결과로 검증한다
 
 시각 회귀 기준선은 고정된 Linux·Chrome·Noto CJK 조합에서 만들고 같은 환경에서 비교한다. macOS에서 만든 이미지는 운영체제와 글꼴 렌더링이 달라 기준선으로 사용하지 않는다. 기준선은 자동으로 갱신하지 않고 실제 화면을 확인한 이미지만 추적한다. 비교 결과가 다르면 실제 이미지와 차이 이미지를 CI 산출물로 확인한다. 픽셀 색상 임계값과 전체 불일치 허용 비율은 0으로 유지하고 안티앨리어싱 차이도 비교에서 제외하지 않는다.
+
+### 가상 목록 선택
+
+TanStack Virtual은 markup을 대신 만들지 않아 단계의 `section`, heading, `ul/li`, 전체 개수와 논리적 위치를 직접 유지할 수 있어 선택했다. candidate ID key, 실제 row 측정, offscreen `scrollToIndex`와 custom range를 조합해 긴 이름·200% 텍스트 확대·포커스 복귀·드래그 중 카드 고정을 같은 목록에서 처리한다.
+
+React Virtuoso는 자동 높이 처리와 빠른 시작이 장점이지만 이번 보드는 DOM과 focus lifecycle을 더 세밀하게 소유해야 했다. react-window는 고정 높이 목록에는 단순하지만 가변 높이와 offscreen 포커스 복구에 추가 조정이 많다. 가상화를 생략하면 1,000명의 React node와 layout 비용을 제한했다는 도전 요구사항의 증거를 만들 수 없다.
 
 ### 단계별 가상 목록
 

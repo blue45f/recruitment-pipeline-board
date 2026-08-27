@@ -799,3 +799,29 @@
 - 모든 원격 ref의 patch를 Secretlint로 검사해 발견 0건을 확인했다. 저장소는 public이고 기본 브랜치는 `main`이다.
 - App 청크는 minify 기준 579.02kB여서 Vite의 500kB 경고가 남는다. 첫 화면은 작은 entry와 부팅 골격이 먼저 표시되고 App은 동적 import하므로 제출을 막는 오류는 아니지만 후속 기능이 늘면 상세와 대화상자 단위 분리를 다시 검토한다.
 - 자동 의미·대비 검사와 키보드 회귀는 통과했지만 실제 VoiceOver 발화 검증은 수행하지 않았다. 따라서 전체 보조기기 적합성을 자동 검사 결과만으로 단정하지 않는다.
+
+## [library-decisions] 주요 라이브러리의 책임과 선택 근거
+
+### 프롬프트 1
+
+> 백업의 요청 사항에 추가된 라이브러리 선정 사유 같은거 남겨놓으라는 말 없었어?
+
+### 프롬프트 2
+
+> 너가 알아서 보완해줘
+
+### AI 출력 요지
+
+- 백업의 평가 추적표에서 상태 관리, rollback, 디렉터리와 라이브러리처럼 결과를 바꾼 결정 3~5개에 채택·기각 이유를 남기라는 기준을 다시 확인한다. 백업은 과제 원문 사본이 아니라 당시 인증 화면을 읽고 정리한 문서라는 범위도 구분한다.
+- `DECISIONS.md`의 최상위 결정은 다섯 개로 유지한다. 설치 목록을 별도 결정으로 늘리지 않고 상태 소유권, 이동 입력, API 경계와 가상 목록 결정 안에서 라이브러리에 맡기는 책임과 애플리케이션이 직접 소유하는 책임을 설명한다.
+- 실제 `package.json`과 source import를 기준으로 README의 기술 구성을 맞춘다. 최종 기능에 추가됐지만 목록에서 빠졌던 dnd-kit과 Sonner를 포함하고, 선정 근거와 기각한 대안은 `DECISIONS.md`를 기준으로 연결한다.
+
+### 리뷰 / 검증
+
+- 백업의 `docs/rubric.md`에는 `DECISIONS.md`가 library를 포함해 결과를 바꾼 결정과 채택·기각 이유를 소유한다고 적혀 있었다. 모든 package를 하나씩 설명하는 조건으로 넓히지 않고, 핵심 상태를 대신하는 library와 사용자 경험·검증 방식에 영향을 준 선택을 보완 대상으로 삼았다.
+- 현재 문서에는 TanStack Query·Zustand·Zod·React Hook Form의 역할과 TanStack Virtual의 동작은 있었지만 대안 비교가 약했다. `@dnd-kit/*`는 실제 제품 코드에서 사용하면서 README 기술 구성에는 빠져 있었다.
+- React 19와 Vite는 별도 backend가 없는 정적 SPA 경계, TanStack Query와 Zustand는 서버 cache와 UI 상태의 수명 분리, Ky·MSW·Zod는 실제 HTTP와 런타임 검증 경계로 선택한 이유를 기존 결정 안에 추가했다. 자동 retry, 하나의 전역 store, endpoint별 함수 stub과 불필요한 서버 경계는 사용하지 않는 대안으로 함께 기록했다.
+- dnd-kit은 포인터 센서·충돌·overlay까지만 맡기고 이동 명령·rollback·Undo는 기존 coordinator가 소유한다. native HTML Drag and Drop과 dnd-kit 접근성 플러그인을 사용하지 않은 터치·버튼 의미 이유도 실제 구현과 대조했다. Radix·Tailwind·CVA·Sonner도 focus primitive, 시각 규칙과 일시적 알림으로 범위를 제한했다.
+- TanStack Virtual은 semantic markup, candidate ID key, 가변 높이, offscreen focus와 드래그 카드 고정을 직접 제어할 수 있어 유지했다. React Virtuoso, react-window와 가상화 생략의 장단점은 백업 비교 문서와 현재 구현을 함께 확인해 요약했다.
+- 독립 읽기 전용 리뷰는 P0·P1 없이 표현 정확도 P2 네 건을 찾았다. 충돌 판정의 실제 `@dnd-kit/collision` 소유, Radix Label 사용, 필터와 단계 변경 폼의 서로 다른 React Hook Form 책임, `react-error-boundary`의 격리·reset 경계를 source import와 대조해 모두 수정했다. 수정 후 재검토에서 남은 P0·P1·P2가 없고, 최상위 결정도 여전히 다섯 개인 것을 확인했다.
+- 문서 외 코드와 dependency는 변경하지 않았다. Node 24와 pnpm 11 환경의 `pnpm check`에서 Prettier, ESLint, Secretlint, Knip, 애플리케이션·Cypress 타입 검사, production build, Vitest 40개 파일의 283개 테스트와 Storybook build가 통과했다. App 청크의 기존 579.02kB 경고는 그대로 남았다.
